@@ -1,4 +1,4 @@
-﻿# SentinelX-SIH26 winner
+﻿# SentinelX-SIH26 winners
  
 
 Brother collaboration test
