@@ -113,6 +113,7 @@ class ForensicHeaders:
     authentication_results_raw_all: list[str] = field(default_factory=list)
     received_chain: list[str] = field(default_factory=list)
     routing_flags: list[str] = field(default_factory=list)
+    received_spf_raw: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -123,6 +124,7 @@ class ForensicHeaders:
             "dmarc_result": self.dmarc_result,
             "received_chain": self.received_chain,
             "routing_flags": self.routing_flags,
+            "received_spf_raw": self.received_spf_raw,
         }
 
 
@@ -160,6 +162,8 @@ def parse_email_forensics(raw_bytes: bytes) -> ForensicHeaders:
         return_path=header_str(msg.get("Return-Path")),
     )
 
+    received_spf_raw = header_str(msg.get("Received-SPF"))
+
     return ForensicHeaders(
         authentication_results_raw=authentication_results_raw,
         spf_result=spf_result,
@@ -168,4 +172,5 @@ def parse_email_forensics(raw_bytes: bytes) -> ForensicHeaders:
         authentication_results_raw_all=authentication_results_all,
         received_chain=received_chain,
         routing_flags=routing_flags,
+        received_spf_raw=received_spf_raw,
     )

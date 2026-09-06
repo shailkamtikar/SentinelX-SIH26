@@ -67,6 +67,17 @@ def test_correct_spf_dkim_dmarc_extraction():
     ]
 
 
+def test_received_spf_raw_extraction():
+    forensics = _forensics_from(FORENSICS_EML_BYTES)
+    assert forensics["received_spf_raw"] is not None
+    assert "203.0.113.9" in forensics["received_spf_raw"]
+
+
+def test_missing_received_spf_resolves_to_none():
+    forensics = _forensics_from(SAMPLE_EML_BYTES)
+    assert forensics["received_spf_raw"] is None
+
+
 def test_extract_auth_verdicts_case_insensitive():
     assert extract_auth_verdicts("SPF=PASS; DKIM=Fail") == ("pass", "fail", None)
 

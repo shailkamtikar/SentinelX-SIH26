@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
+from app.services.ioc_extraction import IOCReport, extract_iocs
 
 router = APIRouter()
 
@@ -52,6 +53,14 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
             dmarc_result=None,
         )
 
+    # IOC extraction is likewise additive and best-effort: it must never
+    # take down an otherwise-successful core parse.
+    try:
+        iocs = extract_iocs(parsed, forensics)
+    except Exception:
+        iocs = IOCReport()
+
     response = parsed.to_dict()
     response["forensics"] = forensics.to_dict()
+    response["iocs"] = iocs.to_dict()
     return response

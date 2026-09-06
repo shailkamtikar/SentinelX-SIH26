@@ -8,6 +8,7 @@ resolve to None rather than a fabricated value.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from email import policy
@@ -105,16 +106,22 @@ def get_attachments(msg: Message) -> list[dict[str, object]]:
         if not filename and disposition != "attachment":
             continue
 
+        decode_failed = False
         try:
             payload = part.get_payload(decode=True) or b""
         except Exception:
             payload = b""
+            decode_failed = True
 
         attachments.append(
             {
                 "filename": filename,
                 "content_type": part.get_content_type(),
                 "size": len(payload),
+                # None on decode failure — never the hash of an empty
+                # placeholder, which would be indistinguishable from the
+                # correct hash of a genuinely empty attachment.
+                "sha256": None if decode_failed else hashlib.sha256(payload).hexdigest(),
             }
         )
 
