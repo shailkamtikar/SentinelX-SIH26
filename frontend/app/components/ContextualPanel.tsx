@@ -10,7 +10,9 @@ const ITEMS: PanelItem[] = [
   {
     title: "Chain of Custody",
     status: "LOCKED",
-    note: "Custody logging and evidence export are not yet implemented.",
+    // The local Evidence Summary export exists, but tamper-evident custody
+    // logging does not — keep this note accurate about what is missing.
+    note: "Custody logging is not yet implemented.",
   },
   {
     title: "MITRE ATT&CK Mapping",
@@ -22,14 +24,12 @@ const ITEMS: PanelItem[] = [
 export default function ContextualPanel() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-sm border border-border-structural bg-surface-container-alt p-4">
-        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-          Contextual Panel
-        </p>
-        <h3 className="mt-1 text-sm font-semibold text-text-primary">
-          Downstream Analysis
+      <div className="rounded-card border border-border-structural/60 bg-surface-lowest p-5">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-text-dim">Contextual panel</p>
+        <h3 className="mt-2 text-[15px] font-semibold tracking-tight text-text-primary">
+          Downstream analysis
         </h3>
-        <p className="mt-1 text-xs leading-5 text-text-dim">
+        <p className="mt-2 text-[12px] leading-5 text-text-dim">
           These panels populate automatically as later pipeline stages are wired to a backend.
           Nothing below reflects real analysis.
         </p>
@@ -38,20 +38,16 @@ export default function ContextualPanel() {
       {ITEMS.map((item) => (
         <div
           key={item.title}
-          className="rounded-sm border border-border-structural bg-surface-lowest p-4 opacity-80"
+          className="rounded-card border border-border-structural/50 bg-surface-lowest/60 p-5"
         >
-          <div className="flex items-start justify-between gap-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              {item.title}
-            </h4>
-            <span className="flex items-center gap-1 shrink-0">
-              {item.status === "LOCKED" && <LockIcon className="h-3 w-3 text-neutral" />}
-              <span className="font-mono text-[8px] uppercase tracking-widest text-neutral">
-                {item.status}
-              </span>
+          <div className="flex items-start justify-between gap-3">
+            <h4 className="text-[13px] font-medium text-text-secondary">{item.title}</h4>
+            <span className="flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-wider text-neutral">
+              {item.status === "LOCKED" && <LockIcon className="h-3 w-3" />}
+              {item.status}
             </span>
           </div>
-          <p className="mt-2 font-mono text-[10px] leading-4 text-text-dim">{item.note}</p>
+          <p className="mt-2.5 text-[12px] leading-5 text-text-dim">{item.note}</p>
         </div>
       ))}
     </div>

@@ -19,68 +19,63 @@ function stageClasses(status: Stage["status"]) {
   switch (status) {
     case "ACTIVE":
       return {
-        wrap: "border-cyan/50 bg-surface-container",
-        code: "text-cyan",
+        marker: "bg-cyan/15 text-cyan",
         label: "text-text-primary",
-        badge: "text-cyan",
+        dot: "bg-cyan",
       };
     case "QUEUED":
       return {
-        wrap: "border-border-structural bg-surface-lowest",
-        code: "text-sky/80",
+        marker: "bg-surface-container text-sky/80",
         label: "text-text-secondary",
-        badge: "text-sky/80",
+        dot: "bg-sky/70",
       };
     case "LOCKED":
       return {
-        wrap: "border-border-structural bg-surface-lowest opacity-60",
-        code: "text-neutral",
+        marker: "bg-surface-container text-neutral",
         label: "text-text-dim",
-        badge: "text-neutral",
+        dot: "bg-neutral/60",
       };
     default:
       return {
-        wrap: "border-border-structural bg-surface-lowest opacity-80",
-        code: "text-text-dim",
+        marker: "bg-surface-container text-text-dim",
         label: "text-text-dim",
-        badge: "text-text-dim",
+        dot: "bg-text-dim/50",
       };
   }
 }
 
 export default function PipelineStages() {
   return (
-    <div className="w-full overflow-x-auto print:hidden">
-      <ol className="flex min-w-max items-stretch gap-2">
+    <div className="w-full overflow-x-auto rounded-panel border border-border-structural/60 bg-surface-lowest px-5 py-5 print:hidden sm:px-7 sm:py-6">
+      <ol className="flex min-w-max items-center">
         {STAGES.map((stage, index) => {
           const classes = stageClasses(stage.status);
-          const isActive = stage.status === "ACTIVE";
+          const isLocked = stage.status === "LOCKED";
           return (
-            <li key={stage.code} className="flex items-center gap-2">
-              <div
-                className={`flex min-w-[132px] flex-col gap-1.5 rounded-sm border px-3.5 py-2.5 ${classes.wrap}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`font-mono text-[11px] ${classes.code}`}>{stage.code}</span>
-                  {isActive && (
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan opacity-60" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan" />
-                    </span>
-                  )}
-                  {stage.status === "LOCKED" && (
-                    <LockIcon className="h-3 w-3 text-neutral" />
-                  )}
+            <li key={stage.code} className="flex items-center">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control font-mono text-[12px] ${classes.marker}`}
+                >
+                  {stage.code}
+                </span>
+                <div className="leading-tight">
+                  <p className={`text-[13px] font-medium ${classes.label}`}>{stage.label}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-text-dim">
+                    {isLocked ? (
+                      <LockIcon className="h-2.5 w-2.5 text-neutral" />
+                    ) : (
+                      <span className={`h-1.5 w-1.5 rounded-full ${classes.dot}`} />
+                    )}
+                    {stage.status}
+                  </p>
                 </div>
-                <span className={`text-xs font-semibold uppercase tracking-wide ${classes.label}`}>
-                  {stage.label}
-                </span>
-                <span className={`font-mono text-[9px] uppercase tracking-widest ${classes.badge}`}>
-                  {stage.status}
-                </span>
               </div>
               {index < STAGES.length - 1 && (
-                <span className="h-px w-4 shrink-0 bg-border-structural" aria-hidden />
+                <span
+                  className="mx-4 h-px w-8 shrink-0 bg-border-structural sm:mx-5 sm:w-12"
+                  aria-hidden
+                />
               )}
             </li>
           );

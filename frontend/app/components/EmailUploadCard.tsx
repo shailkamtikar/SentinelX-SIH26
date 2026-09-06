@@ -122,33 +122,23 @@ export default function EmailUploadCard({
     }
   };
 
-  const dropzoneAccent =
-    isDragging || status === "selected"
-      ? "text-cyan"
-      : status === "invalid"
-        ? "text-critical"
-        : "text-border-structural";
-
   return (
-    <div className="rounded-sm border border-border-structural bg-surface-container print:rounded-none print:border-0 print:bg-transparent">
-      {/* Console header */}
-      <div className="print:hidden flex items-center justify-between border-b border-border-structural px-5 py-4">
+    <div className="rounded-panel border border-border-structural/60 bg-surface-lowest p-5 sm:p-7 print:rounded-none print:border-0 print:bg-transparent print:p-0">
+      {/* Stage header */}
+      <div className="print:hidden flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cyan">
-            Stage 01 — Ingest
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-text-primary">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-cyan">Stage 01 — Ingest</p>
+          <h3 className="mt-2 text-[17px] font-semibold tracking-tight text-text-primary">
             New Evidence Ingestion
           </h3>
         </div>
-        <span className="rounded-sm border border-cyan/40 px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-cyan">
+        <span className="shrink-0 rounded-control bg-cyan/15 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-cyan">
           Active
         </span>
       </div>
 
-      <div className="p-5 sm:p-6">
-      <div className="print:hidden">
-        {/* Ingestion drop zone with datum corner markers */}
+      <div className="print:hidden mt-6">
+        {/* Ingestion drop zone */}
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -162,21 +152,14 @@ export default function EmailUploadCard({
               handleBrowseClick();
             }
           }}
-          className={`relative flex cursor-pointer flex-col items-center justify-center gap-3 border border-dashed px-6 py-14 text-center transition-colors ${
+          className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-card border border-dashed px-6 py-16 text-center transition-colors ${
             isDragging
-              ? "border-cyan bg-surface-high"
+              ? "border-cyan/70 bg-cyan/5"
               : status === "invalid"
-                ? "border-critical/60 bg-surface-low"
-                : "border-border-structural bg-surface-low hover:border-border-focused"
+                ? "border-critical/50 bg-critical/5"
+                : "border-border-structural bg-surface-container/40 hover:border-border-focused hover:bg-surface-container/70"
           }`}
         >
-          <span className={`${dropzoneAccent}`}>
-            <span className="datum-corner datum-corner--tl" />
-            <span className="datum-corner datum-corner--tr" />
-            <span className="datum-corner datum-corner--bl" />
-            <span className="datum-corner datum-corner--br" />
-          </span>
-
           <input
             ref={inputRef}
             type="file"
@@ -185,21 +168,27 @@ export default function EmailUploadCard({
             onChange={handleInputChange}
           />
 
-          <UploadIcon className="h-8 w-8 text-text-dim" />
+          <span
+            className={`flex h-12 w-12 items-center justify-center rounded-card ${
+              isDragging || status === "selected"
+                ? "bg-cyan/15 text-cyan"
+                : "bg-surface-container text-text-dim"
+            }`}
+          >
+            <UploadIcon className="h-6 w-6" />
+          </span>
 
           <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-text-primary">
-              Drop .eml Evidence File
-            </p>
-            <p className="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-text-dim">
-              Or Click To Browse — .eml Only
+            <p className="text-[15px] font-medium text-text-primary">Drop .eml evidence file</p>
+            <p className="mt-1.5 text-[12px] text-text-dim">
+              or click to browse — .eml files only
             </p>
           </div>
         </div>
 
         {status === "invalid" && errorMessage && (
           <p
-            className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 font-mono text-[11px] text-critical"
+            className="mt-4 rounded-control border border-critical/40 bg-critical/10 px-4 py-3 font-mono text-[12px] text-critical"
             role="alert"
           >
             {errorMessage}
@@ -207,29 +196,29 @@ export default function EmailUploadCard({
         )}
 
         {status === "selected" && file && (
-          <div className="mt-4 rounded-sm border border-border-structural bg-surface-lowest">
-            <div className="flex items-center justify-between border-b border-border-structural px-4 py-2.5">
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-                Evidence Metadata
+          <div className="mt-5 rounded-card bg-surface-container p-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-text-dim">
+                Evidence metadata
               </span>
               <button
                 type="button"
                 onClick={handleRemove}
-                className="flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-text-dim transition-colors hover:text-critical"
+                className="flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] text-text-dim transition-colors hover:bg-surface-high hover:text-critical"
                 aria-label="Remove selected file"
               >
                 <CloseIcon className="h-3 w-3" />
                 Remove
               </button>
             </div>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 px-4 py-3.5 font-mono text-[11px] sm:grid-cols-2">
-              <MetaRow label="File Name" value={file.name} truncate />
-              <MetaRow label="File Size" value={formatFileSize(file.size)} />
-              <MetaRow label="MIME Type" value={file.type || "UNKNOWN"} />
-              <MetaRow label="Last Modified" value={formatTimestamp(file.lastModified)} />
+            <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+              <MetaRow label="File name" value={file.name} truncate />
+              <MetaRow label="File size" value={formatFileSize(file.size)} />
+              <MetaRow label="MIME type" value={file.type || "UNKNOWN"} />
+              <MetaRow label="Last modified" value={formatTimestamp(file.lastModified)} />
               <MetaRow label="SHA-256" value="PENDING — not returned by backend" dim />
               <MetaRow
-                label="Ingestion Status"
+                label="Ingestion status"
                 value={analysisState === "success" ? "ANALYZED" : "STAGED"}
                 accent
               />
@@ -241,13 +230,13 @@ export default function EmailUploadCard({
           type="button"
           disabled={status !== "selected" || analysisState === "loading"}
           onClick={handleAnalyzeClick}
-          className="mt-5 flex w-full items-center justify-center rounded-sm bg-cyan px-4 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-canvas-deep transition-colors hover:bg-cyan-light disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-text-dim"
+          className="mt-6 flex w-full items-center justify-center rounded-control bg-cyan px-4 py-3.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-canvas-deep transition-colors hover:bg-cyan-light disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-text-dim"
         >
           {analysisState === "loading" ? "Analyzing…" : "Analyze Email"}
         </button>
 
         {analysisState === "loading" && (
-          <p className="mt-3 rounded-sm border border-border-structural bg-surface-lowest px-3 py-2 font-mono text-[10px] leading-4 text-text-dim">
+          <p className="mt-4 rounded-control bg-surface-container px-4 py-3 font-mono text-[12px] leading-5 text-text-dim">
             <span className="text-cyan">{"> "}</span>
             Sending evidence to the analysis backend…
           </p>
@@ -255,7 +244,7 @@ export default function EmailUploadCard({
 
         {analysisState === "error" && analysisError && (
           <p
-            className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 font-mono text-[11px] text-critical"
+            className="mt-4 rounded-control border border-critical/40 bg-critical/10 px-4 py-3 font-mono text-[12px] text-critical"
             role="alert"
           >
             ANALYSIS FAILED: {analysisError}
@@ -263,10 +252,7 @@ export default function EmailUploadCard({
         )}
       </div>
 
-        {analysisState === "success" && analysisResult && (
-          <AnalysisResult result={analysisResult} />
-        )}
-      </div>
+      {analysisState === "success" && analysisResult && <AnalysisResult result={analysisResult} />}
     </div>
   );
 }
@@ -285,10 +271,10 @@ function MetaRow({
   truncate?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 sm:flex-col sm:items-start sm:gap-0.5">
-      <dt className="shrink-0 uppercase tracking-widest text-text-dim">{label}</dt>
+    <div className="flex flex-col gap-1">
+      <dt className="text-[10px] uppercase tracking-[0.16em] text-text-dim">{label}</dt>
       <dd
-        className={`min-w-0 ${truncate ? "truncate" : ""} ${
+        className={`min-w-0 font-mono text-[12px] ${truncate ? "truncate" : "break-words"} ${
           accent ? "text-cyan" : dim ? "text-text-dim" : "text-text-secondary"
         }`}
       >

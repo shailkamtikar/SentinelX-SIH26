@@ -21,70 +21,58 @@ const AGENTS = [
   { name: "Correlation Agent", state: "OFFLINE" },
 ];
 
-function statusColorClass(status: NavStage["status"]) {
+function statusDotClass(status: NavStage["status"]) {
   switch (status) {
     case "ACTIVE":
-      return "text-cyan";
+      return "bg-cyan";
     case "QUEUED":
-      return "text-sky";
+      return "bg-sky/70";
     case "LOCKED":
-      return "text-neutral";
+      return "bg-neutral/60";
     default:
-      return "text-text-dim";
+      return "bg-text-dim/50";
   }
 }
 
 export default function Sidebar() {
   return (
-    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-border-structural lg:bg-surface-lowest print:hidden">
+    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-border-structural/60 lg:bg-surface-lowest print:hidden">
       {/* Branding */}
-      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-border-structural px-5">
-        <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-cyan/40 text-[10px] font-bold text-cyan">
+      <div className="flex h-16 shrink-0 items-center gap-2.5 px-6">
+        <span className="flex h-7 w-7 items-center justify-center rounded-control bg-cyan/15 text-[11px] font-bold text-cyan">
           X
         </span>
         <div className="leading-tight">
-          <p className="text-sm font-bold tracking-tight text-text-primary">
+          <p className="text-sm font-semibold tracking-tight text-text-primary">
             SENTINEL<span className="text-cyan">X</span>
           </p>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-            DFIR-CORE
-          </p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-dim">DFIR Core</p>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* System status */}
-        <div className="border-b border-border-structural px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verified opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-verified" />
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-text-secondary">
-              System Operational
-            </span>
+      <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4 pt-1">
+        {/* System + case context, grouped into one calm card instead of two
+            separately bordered strips */}
+        <div className="rounded-card bg-surface-container/60 p-4">
+          <div className="flex items-center gap-2.5">
+            <span className="h-2 w-2 rounded-full bg-verified" />
+            <span className="text-[12px] font-medium text-text-secondary">System operational</span>
+          </div>
+          <div className="mt-3.5 border-t border-border-structural/60 pt-3.5">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-text-dim">Active case</p>
+            <p className="mt-1.5 text-[12px] text-text-secondary">No case loaded</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-text-dim">
+              Case management not yet connected.
+            </p>
           </div>
         </div>
 
-        {/* Active case */}
-        <div className="border-b border-border-structural px-5 py-4">
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-            Active Case
+        {/* Investigation pipeline */}
+        <nav>
+          <p className="px-2 text-[10px] uppercase tracking-[0.18em] text-text-dim">
+            Investigation pipeline
           </p>
-          <p className="mt-2 rounded-sm border border-border-structural bg-surface-container px-2.5 py-2 font-mono text-[11px] text-text-dim">
-            NO CASE LOADED
-            <span className="mt-1 block text-text-dim/70">
-              Case management not yet connected.
-            </span>
-          </p>
-        </div>
-
-        {/* Forensic navigation */}
-        <nav className="border-b border-border-structural px-3 py-4">
-          <p className="px-2 font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-            Investigation Pipeline
-          </p>
-          <ul className="mt-2 flex flex-col gap-0.5">
+          <ul className="mt-2.5 flex flex-col gap-1">
             {NAV_STAGES.map((stage) => {
               const isActive = stage.status === "ACTIVE";
               const isLocked = stage.status === "LOCKED";
@@ -92,31 +80,28 @@ export default function Sidebar() {
                 <li key={stage.code}>
                   <div
                     aria-disabled={!isActive}
-                    className={`flex items-center justify-between rounded-sm px-2 py-2 ${
-                      isActive
-                        ? "border border-border-focused bg-surface-container"
-                        : "border border-transparent"
+                    className={`flex items-center gap-3 rounded-control px-3 py-2.5 ${
+                      isActive ? "bg-surface-container" : ""
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`font-mono text-[10px] ${isActive ? "text-cyan" : "text-text-dim"}`}
-                      >
-                        {stage.code}
-                      </span>
-                      <span
-                        className={`text-xs font-medium ${
-                          isActive ? "text-text-primary" : "text-text-dim"
-                        }`}
-                      >
-                        {stage.label}
-                      </span>
+                    <span
+                      className={`w-5 shrink-0 font-mono text-[11px] ${
+                        isActive ? "text-cyan" : "text-text-dim"
+                      }`}
+                    >
+                      {stage.code}
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span
+                      className={`flex-1 text-[13px] ${
+                        isActive ? "font-medium text-text-primary" : "text-text-dim"
+                      }`}
+                    >
+                      {stage.label}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
                       {isLocked && <LockIcon className="h-3 w-3 text-neutral" />}
-                      <span
-                        className={`font-mono text-[8px] uppercase tracking-widest ${statusColorClass(stage.status)}`}
-                      >
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(stage.status)}`} />
+                      <span className="text-[10px] uppercase tracking-wider text-text-dim">
                         {stage.status}
                       </span>
                     </span>
@@ -127,19 +112,16 @@ export default function Sidebar() {
           </ul>
         </nav>
 
-        {/* Operational / agent status */}
-        <div className="border-b border-border-structural px-5 py-4">
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim">
-            Agent Status
-          </p>
-          <ul className="mt-2 flex flex-col gap-1.5">
+        {/* Agent status */}
+        <div>
+          <p className="px-2 text-[10px] uppercase tracking-[0.18em] text-text-dim">Agent status</p>
+          <ul className="mt-2.5 flex flex-col gap-2 px-2">
             {AGENTS.map((agent) => (
-              <li
-                key={agent.name}
-                className="flex items-center justify-between font-mono text-[10px]"
-              >
-                <span className="text-text-secondary">{agent.name}</span>
-                <span className="text-text-dim">{agent.state}</span>
+              <li key={agent.name} className="flex items-center justify-between gap-3">
+                <span className="text-[12px] text-text-secondary">{agent.name}</span>
+                <span className="text-[10px] uppercase tracking-wider text-text-dim">
+                  {agent.state}
+                </span>
               </li>
             ))}
           </ul>
@@ -147,15 +129,13 @@ export default function Sidebar() {
       </div>
 
       {/* Analyst profile */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-border-structural px-5 py-4">
-        <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-border-structural bg-surface-container font-mono text-[10px] text-text-dim">
+      <div className="flex shrink-0 items-center gap-2.5 border-t border-border-structural/60 px-6 py-4">
+        <span className="flex h-8 w-8 items-center justify-center rounded-control bg-surface-container text-[11px] font-medium text-text-secondary">
           LA
         </span>
         <div className="leading-tight">
-          <p className="text-xs font-medium text-text-secondary">Local Analyst</p>
-          <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim">
-            Local Session
-          </p>
+          <p className="text-[12px] font-medium text-text-secondary">Local Analyst</p>
+          <p className="text-[10px] uppercase tracking-wider text-text-dim">Local session</p>
         </div>
       </div>
     </aside>

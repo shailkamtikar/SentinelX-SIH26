@@ -29,16 +29,16 @@ export default function Home() {
           <Header />
         </div>
 
-        <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-          <div className="mx-auto flex max-w-[1800px] flex-col gap-7">
+        <main className="flex-1 px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-10">
+          <div className="mx-auto flex max-w-[1600px] flex-col gap-8">
             <div className="print:hidden">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-dim">
-                Forensic Console / Evidence Ingestion
+              <p className="text-[10px] uppercase tracking-[0.18em] text-text-dim">
+                Forensic console / Evidence ingestion
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text-primary">
+              <h2 className="mt-2.5 text-[26px] font-semibold leading-tight tracking-tight text-text-primary">
                 New Evidence Ingestion
               </h2>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">
+              <p className="mt-3 max-w-3xl text-[13px] leading-6 text-text-secondary">
                 Upload raw email evidence to begin the investigation pipeline. Ingest, Analyze,
                 Enrich, and the deterministic Explain stage are connected and operational. A
                 local Evidence Summary export is available for a completed analysis, and local,
@@ -49,7 +49,7 @@ export default function Home() {
 
             <PipelineStages />
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 xl:gap-8">
               <div className="xl:col-span-8">
                 <EmailUploadCard onAnalysisComplete={handleAnalysisComplete} />
               </div>
