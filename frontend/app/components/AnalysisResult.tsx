@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 
 import type {
   AttachmentHashIndicator,
@@ -190,6 +192,10 @@ function IOCGroup<T>({
 }
 
 export default function AnalysisResult({ result }: { result: ParsedEmail }) {
+  // Captured once when this evidence view is rendered — a real,
+  // client-generated timestamp, not a server or cryptographic one.
+  const [generatedAt] = useState(() => new Date());
+
   // Offline enrichment is joined back onto the existing IOC rows by value
   // rather than reshaping iocs itself — see ioc_enrichment.py.
   const ipClassificationByValue = new Map(
@@ -200,14 +206,37 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
   );
 
   return (
-    <div className="mt-4 rounded-sm border border-border-structural bg-surface-lowest">
+    <div className="print-report mt-4 rounded-sm border border-border-structural bg-surface-lowest">
+      {/* Print-only letterhead — hidden on screen, shown only in the
+          exported/printed Evidence Summary. */}
+      <div className="hidden print:block px-4 pb-3 pt-4">
+        <p className="text-lg font-bold text-text-primary">SentinelX</p>
+        <p className="text-sm font-semibold text-text-secondary">Forensic Evidence Summary</p>
+        <p className="mt-1.5 font-mono text-[10px] text-text-dim">
+          Generated locally in the browser: {generatedAt.toLocaleString()}
+        </p>
+        <p className="font-mono text-[9px] text-text-dim">
+          Deterministic, evidence-based export. Not a cryptographically verified, tamper-evident,
+          or chain-of-custody record.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between border-b border-border-structural px-4 py-2.5">
         <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-verified">
           Parsed Evidence
         </span>
-        <span className="font-mono text-[8px] uppercase tracking-widest text-verified">
-          Analysis Complete
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="print:hidden rounded-sm border border-cyan/40 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-cyan transition-colors hover:bg-cyan/10"
+          >
+            Export Evidence Summary
+          </button>
+          <span className="font-mono text-[8px] uppercase tracking-widest text-verified">
+            Analysis Complete
+          </span>
+        </div>
       </div>
 
       <ThreatAssessmentSummary assessment={result.threat_assessment} />

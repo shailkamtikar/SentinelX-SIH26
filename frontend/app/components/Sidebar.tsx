@@ -12,7 +12,7 @@ const NAV_STAGES: NavStage[] = [
   { code: "03", label: "Enrich", status: "ACTIVE" },
   { code: "04", label: "Correlate", status: "PENDING" },
   { code: "05", label: "Explain", status: "ACTIVE" },
-  { code: "06", label: "Report", status: "LOCKED" },
+  { code: "06", label: "Report", status: "ACTIVE" },
 ];
 
 const AGENTS = [
@@ -36,7 +36,7 @@ function statusColorClass(status: NavStage["status"]) {
 
 export default function Sidebar() {
   return (
-    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-border-structural lg:bg-surface-lowest">
+    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-border-structural lg:bg-surface-lowest print:hidden">
       {/* Branding */}
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-border-structural px-5">
         <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-cyan/40 text-[10px] font-bold text-cyan">

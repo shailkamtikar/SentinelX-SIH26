@@ -12,7 +12,7 @@ const STAGES: Stage[] = [
   { code: "03", label: "Enrich", status: "ACTIVE" },
   { code: "04", label: "Correlate", status: "PENDING" },
   { code: "05", label: "Explain", status: "ACTIVE" },
-  { code: "06", label: "Report", status: "LOCKED" },
+  { code: "06", label: "Report", status: "ACTIVE" },
 ];
 
 function stageClasses(status: Stage["status"]) {
@@ -50,7 +50,7 @@ function stageClasses(status: Stage["status"]) {
 
 export default function PipelineStages() {
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto print:hidden">
       <ol className="flex min-w-max items-stretch gap-2">
         {STAGES.map((stage, index) => {
           const classes = stageClasses(stage.status);

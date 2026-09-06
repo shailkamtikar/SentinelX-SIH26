@@ -9,12 +9,14 @@ export default function Home() {
     <div className="min-h-screen bg-canvas">
       <Sidebar />
 
-      <div className="flex flex-col lg:pl-72">
-        <Header />
+      <div className="flex flex-col print:pl-0 lg:pl-72">
+        <div className="print:hidden">
+          <Header />
+        </div>
 
         <main className="flex-1 px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-7">
-            <div>
+            <div className="print:hidden">
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-dim">
                 Forensic Console / Evidence Ingestion
               </p>
@@ -23,8 +25,9 @@ export default function Home() {
               </h2>
               <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">
                 Upload raw email evidence to begin the investigation pipeline. Ingest, Analyze,
-                Enrich, and the deterministic Explain stage are connected and operational.
-                Correlate and Report remain pending and are not yet implemented.
+                Enrich, and the deterministic Explain stage are connected and operational. A
+                local Evidence Summary export is now available for a completed analysis.
+                Correlate remains pending and is not yet implemented.
               </p>
             </div>
 
@@ -34,7 +37,7 @@ export default function Home() {
               <div className="xl:col-span-8">
                 <EmailUploadCard />
               </div>
-              <div className="xl:col-span-4">
+              <div className="print:hidden xl:col-span-4">
                 <ContextualPanel />
               </div>
             </div>

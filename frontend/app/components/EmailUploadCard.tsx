@@ -125,9 +125,9 @@ export default function EmailUploadCard() {
         : "text-border-structural";
 
   return (
-    <div className="rounded-sm border border-border-structural bg-surface-container">
+    <div className="rounded-sm border border-border-structural bg-surface-container print:rounded-none print:border-0 print:bg-transparent">
       {/* Console header */}
-      <div className="flex items-center justify-between border-b border-border-structural px-5 py-4">
+      <div className="print:hidden flex items-center justify-between border-b border-border-structural px-5 py-4">
         <div>
           <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cyan">
             Stage 01 — Ingest
@@ -142,6 +142,7 @@ export default function EmailUploadCard() {
       </div>
 
       <div className="p-5 sm:p-6">
+      <div className="print:hidden">
         {/* Ingestion drop zone with datum corner markers */}
         <div
           onDrop={handleDrop}
@@ -255,6 +256,7 @@ export default function EmailUploadCard() {
             ANALYSIS FAILED: {analysisError}
           </p>
         )}
+      </div>
 
         {analysisState === "success" && analysisResult && (
           <AnalysisResult result={analysisResult} />

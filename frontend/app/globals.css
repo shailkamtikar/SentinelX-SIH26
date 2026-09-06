@@ -74,3 +74,21 @@ body {
   border-bottom: 2px solid currentColor;
   border-right: 2px solid currentColor;
 }
+
+/* Print-only rendering for the Forensic Evidence Summary export
+   (AnalysisResult.tsx, .print-report). The on-screen dark theme is
+   unreadable on white paper, so printed output is forced to plain
+   dark-on-white regardless of the browser's "print background graphics"
+   setting, and any clamped/scrollable evidence regions are expanded so
+   nothing is cut off in the exported report. */
+@media print {
+  .print-report,
+  .print-report * {
+    background-color: #ffffff !important;
+    color: #111319 !important;
+    border-color: #94a3b8 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+}
