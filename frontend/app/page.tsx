@@ -22,9 +22,9 @@ export default function Home() {
                 New Evidence Ingestion
               </h2>
               <p className="mt-1.5 max-w-2xl text-sm leading-6 text-text-secondary">
-                Upload raw email evidence to begin the investigation pipeline. Only the ingest
-                stage is currently operational — later stages are shown for context and are not
-                yet connected.
+                Upload raw email evidence to begin the investigation pipeline. Ingest, Analyze,
+                Enrich, and the deterministic Explain stage are connected and operational.
+                Correlate and Report remain pending and are not yet implemented.
               </p>
             </div>
 

@@ -10,12 +10,7 @@ const ITEMS: PanelItem[] = [
   {
     title: "Chain of Custody",
     status: "LOCKED",
-    note: "Available once INGEST is finalized and ANALYZE is connected.",
-  },
-  {
-    title: "Threat Indicators",
-    status: "PENDING",
-    note: "Requires the ENRICH stage to be connected.",
+    note: "Custody logging and evidence export are not yet implemented.",
   },
   {
     title: "MITRE ATT&CK Mapping",
