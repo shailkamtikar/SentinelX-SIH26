@@ -34,6 +34,16 @@ function SourceTag({ sources }: { sources: string[] }) {
   );
 }
 
+// Structural facts only, never a maliciousness verdict — same neutral
+// visual language as the IP "Private" badge below.
+function FlagBadge({ label }: { label: string }) {
+  return (
+    <span className="rounded-sm border border-neutral/40 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-widest text-neutral">
+      {label}
+    </span>
+  );
+}
+
 function IPIndicatorRow({ entry }: { entry: IPIndicator }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
@@ -53,7 +63,10 @@ function IPIndicatorRow({ entry }: { entry: IPIndicator }) {
 function DomainIndicatorRow({ entry }: { entry: DomainIndicator }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
-      <span className="mr-2 break-all text-text-secondary">{entry.value}</span>
+      <span className="mr-2 flex flex-wrap items-center gap-2">
+        <span className="break-all text-text-secondary">{entry.value}</span>
+        {entry.punycode_domain && <FlagBadge label="Punycode" />}
+      </span>
       <SourceTag sources={entry.sources} />
     </li>
   );
@@ -62,7 +75,12 @@ function DomainIndicatorRow({ entry }: { entry: DomainIndicator }) {
 function URLIndicatorRow({ entry }: { entry: URLIndicator }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
-      <span className="mr-2 break-all text-sky">{entry.value}</span>
+      <span className="mr-2 flex flex-wrap items-center gap-2">
+        <span className="break-all text-sky">{entry.value}</span>
+        {entry.ip_literal_url && <FlagBadge label="IP literal" />}
+        {entry.credential_in_url && <FlagBadge label="Credentials in URL" />}
+        {entry.punycode_domain && <FlagBadge label="Punycode" />}
+      </span>
       <SourceTag sources={entry.sources} />
     </li>
   );

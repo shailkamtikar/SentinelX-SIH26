@@ -25,11 +25,15 @@ export type IPIndicator = {
 export type DomainIndicator = {
   value: string;
   sources: string[];
+  punycode_domain: boolean;
 };
 
 export type URLIndicator = {
   value: string;
   sources: string[];
+  ip_literal_url: boolean;
+  credential_in_url: boolean;
+  punycode_domain: boolean;
 };
 
 export type AttachmentHashIndicator = {

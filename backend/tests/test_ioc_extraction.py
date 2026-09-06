@@ -299,3 +299,177 @@ def test_ioc_extraction_failure_does_not_break_core_response(monkeypatch):
     assert "iocs" in data
     assert data["iocs"]["ipv4"] == []
     assert data["iocs"]["domains"] == []
+
+
+# --- 10. Structural risk flags (offline, deterministic) ----------------------
+
+
+def _url_by_value(iocs: dict, value: str) -> dict | None:
+    for entry in iocs["urls"]:
+        if entry["value"] == value:
+            return entry
+    return None
+
+
+def test_ip_literal_url_flag_true_for_ipv4_host():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Click http://203.0.113.77/payload now.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "http://203.0.113.77/payload")
+    assert entry is not None
+    assert entry["ip_literal_url"] is True
+    assert entry["credential_in_url"] is False
+    assert entry["punycode_domain"] is False
+
+
+def test_ip_literal_url_flag_true_for_ipv6_host():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Click https://[2001:db8::5]/secure now.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "https://[2001:db8::5]/secure")
+    assert entry is not None
+    assert entry["ip_literal_url"] is True
+
+
+def test_ip_literal_url_flag_false_for_domain_host():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Click http://example.com/page now.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "http://example.com/page")
+    assert entry is not None
+    assert entry["ip_literal_url"] is False
+
+
+def test_credential_in_url_flag_true_when_userinfo_present():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Login at http://user:pass@evil.example/account now.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "http://user:pass@evil.example/account")
+    assert entry is not None
+    assert entry["credential_in_url"] is True
+    assert entry["ip_literal_url"] is False
+
+
+def test_credential_in_url_flag_false_when_absent():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Click http://example.com/page now.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "http://example.com/page")
+    assert entry is not None
+    assert entry["credential_in_url"] is False
+
+
+def test_punycode_domain_flag_true_for_xn_label_domain():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Reply-To: attacker@xn--80ak6aa92e.com\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"body\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    by_value = {d["value"]: d for d in report["domains"]}
+    assert by_value["xn--80ak6aa92e.com"]["punycode_domain"] is True
+
+
+def test_punycode_domain_flag_false_for_normal_domain():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"body\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    by_value = {d["value"]: d for d in report["domains"]}
+    assert by_value["example.com"]["punycode_domain"] is False
+
+
+def test_punycode_domain_flag_true_on_url_hostname():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Visit http://xn--80ak6aa92e.com/page for details.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    url_entry = _url_by_value(report, "http://xn--80ak6aa92e.com/page")
+    assert url_entry is not None
+    assert url_entry["punycode_domain"] is True
+
+    domain_by_value = {d["value"]: d for d in report["domains"]}
+    assert domain_by_value["xn--80ak6aa92e.com"]["punycode_domain"] is True
+
+
+def test_malformed_url_structural_flags_do_not_crash_extraction():
+    raw = (
+        b"From: alice@example.com\r\n"
+        b"To: bob@example.org\r\n"
+        b"Subject: test\r\n"
+        b"\r\n"
+        b"Bad link http://[::1 in this message.\r\n"
+    )
+    parsed = parse_eml_bytes(raw)
+    forensics = parse_email_forensics(raw)
+    # parsed.urls contains the unbalanced-bracket string as-is; urlsplit()
+    # raises ValueError on it ("Invalid IPv6 URL") — extraction must not crash.
+    assert "http://[::1" in parsed.urls
+
+    report = extract_iocs(parsed, forensics).to_dict()
+
+    entry = _url_by_value(report, "http://[::1")
+    assert entry is not None
+    assert entry["ip_literal_url"] is False
+    assert entry["credential_in_url"] is False
+    assert entry["punycode_domain"] is False

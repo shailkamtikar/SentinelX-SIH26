@@ -80,6 +80,49 @@ def _normalize_domain(hostname: str | None) -> str | None:
     return normalized or None
 
 
+def _is_punycode_hostname(hostname: str | None) -> bool:
+    """Structural fact only: at least one label is IDN ACE-encoded (xn--).
+
+    Not a maliciousness signal by itself — plenty of legitimate
+    internationalized domains use punycode.
+    """
+    if not hostname:
+        return False
+    return any(label.startswith("xn--") for label in hostname.split("."))
+
+
+def _safe_urlsplit_hostname(url: str) -> str | None:
+    """hostname from urlsplit(), or None if the URL's syntax is unparsable.
+
+    urlsplit() raises ValueError on some malformed strings (e.g. an
+    unbalanced IPv6-literal bracket like "http://[::1"). A single
+    malformed URL in a hostile/malformed email must not crash extraction
+    for every other indicator, so this degrades to "no hostname" instead.
+    """
+    try:
+        return urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
+def _url_structural_flags(url: str) -> tuple[bool, bool, bool]:
+    """Return (ip_literal_url, credential_in_url, punycode_domain) for a URL.
+
+    Purely structural observations about the URL's own syntax — never
+    raises, since a malformed URL must not crash IOC extraction; an
+    unparsable URL simply yields all-False flags.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False, False, False
+    hostname = parts.hostname
+    ip_literal = hostname is not None and _classify_ip(hostname) is not None
+    credential = parts.username is not None
+    punycode = _is_punycode_hostname(hostname)
+    return ip_literal, credential, punycode
+
+
 @dataclass
 class IPIndicator:
     value: str
@@ -94,18 +137,32 @@ class IPIndicator:
 class DomainIndicator:
     value: str
     sources: list[str] = field(default_factory=list)
+    punycode_domain: bool = False
 
     def to_dict(self) -> dict[str, object]:
-        return {"value": self.value, "sources": self.sources}
+        return {
+            "value": self.value,
+            "sources": self.sources,
+            "punycode_domain": self.punycode_domain,
+        }
 
 
 @dataclass
 class URLIndicator:
     value: str
     sources: list[str] = field(default_factory=list)
+    ip_literal_url: bool = False
+    credential_in_url: bool = False
+    punycode_domain: bool = False
 
     def to_dict(self) -> dict[str, object]:
-        return {"value": self.value, "sources": self.sources}
+        return {
+            "value": self.value,
+            "sources": self.sources,
+            "ip_literal_url": self.ip_literal_url,
+            "credential_in_url": self.credential_in_url,
+            "punycode_domain": self.punycode_domain,
+        }
 
 
 @dataclass
@@ -172,7 +229,11 @@ def extract_iocs(parsed: ParsedEmail, forensics: ForensicHeaders) -> IOCReport:
             if source not in domain_map[normalized].sources:
                 domain_map[normalized].sources.append(source)
         else:
-            domain_map[normalized] = DomainIndicator(value=normalized, sources=[source])
+            domain_map[normalized] = DomainIndicator(
+                value=normalized,
+                sources=[source],
+                punycode_domain=_is_punycode_hostname(normalized),
+            )
 
     # --- IP extraction -----------------------------------------------------
 
@@ -189,7 +250,7 @@ def extract_iocs(parsed: ParsedEmail, forensics: ForensicHeaders) -> IOCReport:
             add_ip(candidate, "received_spf")
 
     for url in parsed.urls:
-        hostname = urlsplit(url).hostname
+        hostname = _safe_urlsplit_hostname(url)
         if hostname:
             classified = _classify_ip(hostname)
             if classified is not None:
@@ -202,7 +263,7 @@ def extract_iocs(parsed: ParsedEmail, forensics: ForensicHeaders) -> IOCReport:
     add_domain(extract_domain(parsed.return_path), "return_path_header")
 
     for url in parsed.urls:
-        hostname = urlsplit(url).hostname
+        hostname = _safe_urlsplit_hostname(url)
         # A URL host that is itself a valid IP is an IP indicator, not a
         # domain indicator — don't double-count it under both types.
         if hostname and _classify_ip(hostname) is None:
@@ -210,7 +271,18 @@ def extract_iocs(parsed: ParsedEmail, forensics: ForensicHeaders) -> IOCReport:
 
     # --- URL indicators (reuse parsed.urls verbatim; no second regex) -------
 
-    url_indicators = [URLIndicator(value=url, sources=["url"]) for url in parsed.urls]
+    url_indicators = []
+    for url in parsed.urls:
+        ip_literal, credential, punycode = _url_structural_flags(url)
+        url_indicators.append(
+            URLIndicator(
+                value=url,
+                sources=["url"],
+                ip_literal_url=ip_literal,
+                credential_in_url=credential,
+                punycode_domain=punycode,
+            )
+        )
 
     # --- Attachment hashes (read already-computed sha256, never re-hash) ---
 
