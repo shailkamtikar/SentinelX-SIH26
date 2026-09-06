@@ -1,0 +1,29 @@
+From: Alice Analyst <alice@example.com>
+To: bob@example.org
+Reply-To: attacker@malicious-example.net
+Return-Path: <bounce@another-domain.test>
+Date: Tue, 10 Jun 2025 14:32:00 +0000
+Message-ID: <forensics-fixture-0001@example.com>
+Subject: Forensics Fixture - Auth And Routing Test
+Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=example.com;
+ dkim=pass header.d=example.com; dmarc=fail header.from=example.com
+Received-SPF: fail (example.com: domain of alice@example.com does not
+ designate 203.0.113.9 as permitted sender) client-ip=203.0.113.9;
+DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=selector1;
+ c=relaxed/relaxed; h=from:to:subject:date; bh=2jmj7l5rSw0yVb/vlWAYkK/YBwk=;
+ b=dGVzdHNpZ25hdHVyZQ==
+Received: from mail.relay-one.test (relay-one.test [198.51.100.5]) by
+ mail.relay-two.test with ESMTP id xyz789; Tue, 10 Jun 2025 14:31:40 +0000
+Received: from mail.relay-two.test (relay-two.test [198.51.100.7]) by
+ mx.example.com with ESMTPS id abc123 for <bob@example.org>; Tue, 10 Jun 2025
+ 14:31:50 +0000
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Hi Bob,
+
+This fixture exercises authentication and routing forensics.
+
+Thanks,
+Alice

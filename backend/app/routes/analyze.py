@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.services.eml_parser import parse_eml_bytes
+from app.services.email_forensics import ForensicHeaders, parse_email_forensics
 
 router = APIRouter()
 
@@ -38,4 +39,19 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
             detail="Unable to parse email: the file is not a valid RFC-822/MIME message.",
         ) from exc
 
-    return parsed.to_dict()
+    # Forensics is an additive, best-effort layer: a failure here must never
+    # take down an otherwise-successful core parse. Fall back to an empty
+    # forensic structure rather than fabricating anything.
+    try:
+        forensics = parse_email_forensics(raw_bytes)
+    except Exception:
+        forensics = ForensicHeaders(
+            authentication_results_raw=None,
+            spf_result=None,
+            dkim_result=None,
+            dmarc_result=None,
+        )
+
+    response = parsed.to_dict()
+    response["forensics"] = forensics.to_dict()
+    return response
