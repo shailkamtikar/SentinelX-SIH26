@@ -17,12 +17,10 @@ import re
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
+from email.utils import getaddresses
 
 # RFC 8601 Authentication-Results tokens look like "spf=pass", "dkim=fail", etc.
 _AUTH_RESULT_PATTERN = re.compile(r"\b(spf|dkim|dmarc)\s*=\s*([a-zA-Z0-9_-]+)", re.IGNORECASE)
-
-# Bare-domain extraction from an address header's "@domain" portion.
-_DOMAIN_PATTERN = re.compile(r"@([A-Za-z0-9.-]+)")
 
 
 def header_str(value: object) -> str | None:
@@ -33,13 +31,31 @@ def header_str(value: object) -> str | None:
 
 
 def extract_domain(address_header: str | None) -> str | None:
-    """Best-effort bare-domain extraction from a From/Reply-To/Return-Path value."""
+    """Bare-domain extraction from a From/Reply-To/Return-Path value.
+
+    Uses email.utils.getaddresses to get the actual parsed addr-spec
+    rather than searching the raw header text for "@domain". A naive text
+    search can be fooled by a quoted display name that itself contains an
+    email-like string — e.g. `"billing@yourbank.com" <attacker@evil.net>`
+    is valid RFC 5322 and a text search would wrongly extract
+    "yourbank.com" instead of the real sending domain "evil.net".
+    getaddresses correctly separates the display name from the actual
+    angle-bracket address (plain email.utils.parseaddr does not reliably
+    handle this — it returns ('', '') for some inputs it doesn't expect).
+
+    Prototype scope: a header with multiple comma-separated mailboxes
+    (e.g. "Reply-To: a@x.com, b@y.com") is not fully modeled — only the
+    first parsed address's domain is considered.
+    """
     if not address_header:
         return None
-    match = _DOMAIN_PATTERN.search(address_header)
-    if not match:
+    addresses = getaddresses([address_header])
+    if not addresses:
         return None
-    return match.group(1).lower()
+    _, addr_spec = addresses[0]
+    if "@" not in addr_spec:
+        return None
+    return addr_spec.rsplit("@", 1)[-1].lower()
 
 
 def extract_auth_verdicts(
@@ -94,12 +110,14 @@ class ForensicHeaders:
     spf_result: str | None
     dkim_result: str | None
     dmarc_result: str | None
+    authentication_results_raw_all: list[str] = field(default_factory=list)
     received_chain: list[str] = field(default_factory=list)
     routing_flags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "authentication_results_raw": self.authentication_results_raw,
+            "authentication_results_raw_all": self.authentication_results_raw_all,
             "spf_result": self.spf_result,
             "dkim_result": self.dkim_result,
             "dmarc_result": self.dmarc_result,
@@ -117,7 +135,21 @@ def parse_email_forensics(raw_bytes: bytes) -> ForensicHeaders:
     """
     msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
 
-    authentication_results_raw = header_str(msg.get("Authentication-Results"))
+    # A message can legitimately carry more than one Authentication-Results
+    # header (e.g. added by successive verifying hosts). Preserve all of
+    # them as evidence — get_all, not get, so none are silently discarded.
+    authentication_results_all = [
+        str(value).strip() for value in (msg.get_all("Authentication-Results") or [])
+    ]
+    # Prototype scope: spf/dkim/dmarc verdicts are driven by the topmost
+    # (first-listed) header only, on the assumption it was added by the
+    # last hop before delivery. This is the result as recorded by that
+    # mail server — it is NOT independently re-verified (no live DNS, no
+    # external calls), and a header earlier in transit could in principle
+    # be forged before reaching a trusted hop.
+    authentication_results_raw = (
+        authentication_results_all[0] if authentication_results_all else None
+    )
     spf_result, dkim_result, dmarc_result = extract_auth_verdicts(authentication_results_raw)
 
     received_chain = [str(value).strip() for value in (msg.get_all("Received") or [])]
@@ -133,6 +165,7 @@ def parse_email_forensics(raw_bytes: bytes) -> ForensicHeaders:
         spf_result=spf_result,
         dkim_result=dkim_result,
         dmarc_result=dmarc_result,
+        authentication_results_raw_all=authentication_results_all,
         received_chain=received_chain,
         routing_flags=routing_flags,
     )
