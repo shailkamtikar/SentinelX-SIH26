@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #111319;
+  --color-canvas-deep: #0a0d12;
+  --color-surface-lowest: #0b0e13;
+  --color-surface-low: #191c21;
+  --color-surface-low-alt: #10141c;
+  --color-surface-container: #1d2025;
+  --color-surface-container-alt: #161b24;
+  --color-surface-high: #272a30;
+  --color-surface-high-alt: #1e2430;
+  --color-surface-highest: #32353b;
+
+  --color-cyan: #00d2ff;
+  --color-cyan-light: #a5e7ff;
+  --color-sky: #38bdf8;
+  --color-sky-light: #7bd0ff;
+
+  --color-text-primary: #e1e2ea;
+  --color-text-secondary: #bbc9cf;
+  --color-text-dim: #859399;
+
+  --color-border-structural: #1f2937;
+  --color-border-focused: #263040;
+
+  --color-critical: #f43f5e;
+  --color-warning: #f59e0b;
+  --color-verified: #10b981;
+  --color-neutral: #64748b;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+}
+
+::selection {
+  background: var(--color-cyan);
+  color: var(--color-canvas-deep);
+}
+
+/* Technical corner/datum markers framing the active evidence ingestion zone */
+.datum-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.datum-corner--tl {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+}
+.datum-corner--tr {
+  top: -1px;
+  right: -1px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+.datum-corner--bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+}
+.datum-corner--br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
