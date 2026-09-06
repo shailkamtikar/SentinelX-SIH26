@@ -54,6 +54,21 @@ export type ThreatAssessment = {
   reasons: string[];
 };
 
+export type IPEnrichment = {
+  value: string;
+  classification: string;
+};
+
+export type URLEnrichment = {
+  value: string;
+  known_url_shortener: boolean;
+};
+
+export type Enrichment = {
+  ip: IPEnrichment[];
+  url: URLEnrichment[];
+};
+
 export type ParsedEmail = {
   sender: string | null;
   recipient: string | null;
@@ -68,6 +83,7 @@ export type ParsedEmail = {
   forensics: Forensics;
   iocs: IOCs;
   threat_assessment: ThreatAssessment;
+  enrichment: Enrichment;
 };
 
 export class AnalyzeEmailError extends Error {}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
+from app.services.ioc_enrichment import EnrichmentReport, enrich_iocs
 from app.services.ioc_extraction import IOCReport, extract_iocs
 from app.services.threat_assessment import ThreatAssessment, assess_threat
 
@@ -70,8 +71,17 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
     except Exception:
         assessment = ThreatAssessment(risk_level="UNKNOWN", reasons=["assessment unavailable"])
 
+    # IOC enrichment is likewise additive and best-effort: it must never
+    # take down an otherwise-successful core parse, and a failure here must
+    # never alter the already-computed iocs or threat_assessment responses.
+    try:
+        enrichment = enrich_iocs(iocs)
+    except Exception:
+        enrichment = EnrichmentReport()
+
     response = parsed.to_dict()
     response["forensics"] = forensics.to_dict()
     response["iocs"] = iocs.to_dict()
     response["threat_assessment"] = assessment.to_dict()
+    response["enrichment"] = enrichment.to_dict()
     return response

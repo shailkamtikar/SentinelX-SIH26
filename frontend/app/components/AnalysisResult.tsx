@@ -95,14 +95,23 @@ function FlagBadge({ label }: { label: string }) {
   );
 }
 
-function IPIndicatorRow({ entry }: { entry: IPIndicator }) {
+function IPIndicatorRow({
+  entry,
+  classification,
+}: {
+  entry: IPIndicator;
+  classification?: string;
+}) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
       <span className="mr-2 flex items-center gap-2 text-text-secondary">
         <span>{entry.value}</span>
         {entry.private && (
           <span className="rounded-sm border border-neutral/40 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-widest text-neutral">
-            Private
+            {/* Falls back to the generic "Private" label when offline
+                enrichment is unavailable — the row must still degrade
+                gracefully, exactly as before this milestone. */}
+            {classification ?? "Private"}
           </span>
         )}
       </span>
@@ -123,7 +132,13 @@ function DomainIndicatorRow({ entry }: { entry: DomainIndicator }) {
   );
 }
 
-function URLIndicatorRow({ entry }: { entry: URLIndicator }) {
+function URLIndicatorRow({
+  entry,
+  isKnownShortener,
+}: {
+  entry: URLIndicator;
+  isKnownShortener?: boolean;
+}) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
       <span className="mr-2 flex flex-wrap items-center gap-2">
@@ -131,6 +146,7 @@ function URLIndicatorRow({ entry }: { entry: URLIndicator }) {
         {entry.ip_literal_url && <FlagBadge label="IP literal" />}
         {entry.credential_in_url && <FlagBadge label="Credentials in URL" />}
         {entry.punycode_domain && <FlagBadge label="Punycode" />}
+        {isKnownShortener && <FlagBadge label="Known URL shortener" />}
       </span>
       <SourceTag sources={entry.sources} />
     </li>
@@ -174,6 +190,15 @@ function IOCGroup<T>({
 }
 
 export default function AnalysisResult({ result }: { result: ParsedEmail }) {
+  // Offline enrichment is joined back onto the existing IOC rows by value
+  // rather than reshaping iocs itself — see ioc_enrichment.py.
+  const ipClassificationByValue = new Map(
+    result.enrichment.ip.map((entry) => [entry.value, entry.classification]),
+  );
+  const knownShortenerUrls = new Set(
+    result.enrichment.url.filter((entry) => entry.known_url_shortener).map((entry) => entry.value),
+  );
+
   return (
     <div className="mt-4 rounded-sm border border-border-structural bg-surface-lowest">
       <div className="flex items-center justify-between border-b border-border-structural px-4 py-2.5">
@@ -337,14 +362,26 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
           label="IPv4"
           entries={result.iocs.ipv4}
           emptyText="No IPv4 indicators found."
-          renderRow={(entry) => <IPIndicatorRow key={entry.value} entry={entry} />}
+          renderRow={(entry) => (
+            <IPIndicatorRow
+              key={entry.value}
+              entry={entry}
+              classification={ipClassificationByValue.get(entry.value)}
+            />
+          )}
         />
 
         <IOCGroup
           label="IPv6"
           entries={result.iocs.ipv6}
           emptyText="No IPv6 indicators found."
-          renderRow={(entry) => <IPIndicatorRow key={entry.value} entry={entry} />}
+          renderRow={(entry) => (
+            <IPIndicatorRow
+              key={entry.value}
+              entry={entry}
+              classification={ipClassificationByValue.get(entry.value)}
+            />
+          )}
         />
 
         <IOCGroup
@@ -358,7 +395,13 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
           label="URL Indicators"
           entries={result.iocs.urls}
           emptyText="No URL indicators found."
-          renderRow={(entry) => <URLIndicatorRow key={entry.value} entry={entry} />}
+          renderRow={(entry) => (
+            <URLIndicatorRow
+              key={entry.value}
+              entry={entry}
+              isKnownShortener={knownShortenerUrls.has(entry.value)}
+            />
+          )}
         />
 
         <IOCGroup
