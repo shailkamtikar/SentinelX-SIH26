@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.services.eml_parser import parse_eml_bytes
+from app.services.email_forensics import parse_email_forensics
 
 router = APIRouter()
 
@@ -32,10 +33,13 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
 
     try:
         parsed = parse_eml_bytes(raw_bytes)
+        forensics = parse_email_forensics(raw_bytes)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Unable to parse email: the file is not a valid RFC-822/MIME message.",
         ) from exc
 
-    return parsed.to_dict()
+    response = parsed.to_dict()
+    response["forensics"] = forensics.to_dict()
+    return response

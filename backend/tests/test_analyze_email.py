@@ -25,7 +25,9 @@ def test_valid_eml_upload_returns_200_and_expected_schema():
     response = _upload("sample.eml", SAMPLE_EML_BYTES)
     assert response.status_code == 200
     data = response.json()
-    assert set(data.keys()) == {
+    # The original 10 fields must remain present and unchanged; "forensics" is
+    # an additive key layered on top by the email-forensics milestone.
+    assert {
         "sender",
         "recipient",
         "subject",
@@ -36,7 +38,8 @@ def test_valid_eml_upload_returns_200_and_expected_schema():
         "body",
         "attachments",
         "urls",
-    }
+    }.issubset(data.keys())
+    assert "forensics" in data
 
 
 def test_sender_recipient_subject_extraction():
