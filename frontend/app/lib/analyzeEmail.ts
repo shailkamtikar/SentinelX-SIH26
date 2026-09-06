@@ -6,6 +6,16 @@ export type Attachment = {
   size: number;
 };
 
+export type Forensics = {
+  authentication_results_raw: string | null;
+  authentication_results_raw_all: string[];
+  spf_result: string | null;
+  dkim_result: string | null;
+  dmarc_result: string | null;
+  received_chain: string[];
+  routing_flags: string[];
+};
+
 export type ParsedEmail = {
   sender: string | null;
   recipient: string | null;
@@ -17,6 +27,7 @@ export type ParsedEmail = {
   body: string | null;
   attachments: Attachment[];
   urls: string[];
+  forensics: Forensics;
 };
 
 export class AnalyzeEmailError extends Error {}

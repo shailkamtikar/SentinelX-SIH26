@@ -13,11 +13,6 @@ const ITEMS: PanelItem[] = [
     note: "Available once INGEST is finalized and ANALYZE is connected.",
   },
   {
-    title: "Auth Results — SPF / DKIM / DMARC",
-    status: "PENDING",
-    note: "Requires the ANALYZE stage to be connected.",
-  },
-  {
     title: "Threat Indicators",
     status: "PENDING",
     note: "Requires the ENRICH stage to be connected.",
