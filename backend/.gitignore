@@ -2,3 +2,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# env files (real Supabase credentials) — never commit these
+.env
+.env.local
+!.env.example

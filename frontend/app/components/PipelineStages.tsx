@@ -10,7 +10,7 @@ const STAGES: Stage[] = [
   { code: "01", label: "Ingest", status: "ACTIVE" },
   { code: "02", label: "Analyze", status: "ACTIVE" },
   { code: "03", label: "Enrich", status: "ACTIVE" },
-  { code: "04", label: "Correlate", status: "PENDING" },
+  { code: "04", label: "Correlate", status: "ACTIVE" },
   { code: "05", label: "Explain", status: "ACTIVE" },
   { code: "06", label: "Report", status: "ACTIVE" },
 ];

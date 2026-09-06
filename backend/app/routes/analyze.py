@@ -1,5 +1,6 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
+from app.services.analysis_store import persist_analysis
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
 from app.services.ioc_enrichment import EnrichmentReport, enrich_iocs
@@ -84,4 +85,14 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
     response["iocs"] = iocs.to_dict()
     response["threat_assessment"] = assessment.to_dict()
     response["enrichment"] = enrichment.to_dict()
+
+    # Persistence to Supabase happens only after the response above is
+    # fully assembled, and is additive/best-effort like every stage above:
+    # a database or network failure must never change this response or
+    # turn a successful analysis into an HTTP error.
+    try:
+        persist_analysis(raw_bytes=raw_bytes, filename=file.filename, response=response)
+    except Exception:
+        pass
+
     return response

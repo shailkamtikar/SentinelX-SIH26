@@ -29,7 +29,11 @@ function isEmlFile(file: File): boolean {
   return file.name.toLowerCase().endsWith(".eml");
 }
 
-export default function EmailUploadCard() {
+export default function EmailUploadCard({
+  onAnalysisComplete,
+}: {
+  onAnalysisComplete?: (result: ParsedEmail) => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("empty");
@@ -107,6 +111,7 @@ export default function EmailUploadCard() {
       const result = await analyzeEmail(file);
       setAnalysisResult(result);
       setAnalysisState("success");
+      onAnalysisComplete?.(result);
     } catch (error) {
       const message =
         error instanceof AnalyzeEmailError
