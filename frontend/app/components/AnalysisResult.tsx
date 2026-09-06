@@ -5,8 +5,59 @@ import type {
   DomainIndicator,
   IPIndicator,
   ParsedEmail,
+  ThreatAssessment,
   URLIndicator,
 } from "../lib/analyzeEmail";
+
+// Full literal class strings per key (not fragment-interpolated) so
+// Tailwind's static scanner can find them — reuses only existing tokens.
+const RISK_LEVEL_STYLES: Record<
+  ThreatAssessment["risk_level"],
+  { border: string; bg: string; text: string }
+> = {
+  LOW: { border: "border-verified/40", bg: "bg-verified/10", text: "text-verified" },
+  MEDIUM: { border: "border-warning/40", bg: "bg-warning/10", text: "text-warning" },
+  HIGH: { border: "border-critical/40", bg: "bg-critical/10", text: "text-critical" },
+  UNKNOWN: { border: "border-neutral/40", bg: "bg-neutral/10", text: "text-neutral" },
+};
+
+function ThreatAssessmentSummary({ assessment }: { assessment: ThreatAssessment }) {
+  const styles = RISK_LEVEL_STYLES[assessment.risk_level];
+
+  return (
+    <div className={`border-b border-border-structural px-4 py-3.5 ${styles.bg}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim">
+          Evidence-Based Risk
+        </p>
+        <span
+          className={`rounded-sm border ${styles.border} px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${styles.text}`}
+        >
+          {assessment.risk_level}
+        </span>
+      </div>
+
+      {assessment.reasons.length === 0 ? (
+        <p className="mt-2 font-mono text-[11px] text-text-dim">
+          No risk indicators found in extracted evidence.
+        </p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1">
+          {assessment.reasons.map((reason, index) => (
+            <li key={index} className={`font-mono text-[11px] ${styles.text}`}>
+              {reason}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 font-mono text-[9px] uppercase tracking-wide text-text-dim">
+        Deterministic, evidence-based assessment — not machine learning or reputation
+        intelligence.
+      </p>
+    </div>
+  );
+}
 
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
@@ -133,6 +184,8 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
           Analysis Complete
         </span>
       </div>
+
+      <ThreatAssessmentSummary assessment={result.threat_assessment} />
 
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-2">
         <Field label="Sender" value={result.sender} />

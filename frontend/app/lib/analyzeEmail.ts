@@ -49,6 +49,11 @@ export type IOCs = {
   attachment_hashes: AttachmentHashIndicator[];
 };
 
+export type ThreatAssessment = {
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
+  reasons: string[];
+};
+
 export type ParsedEmail = {
   sender: string | null;
   recipient: string | null;
@@ -62,6 +67,7 @@ export type ParsedEmail = {
   urls: string[];
   forensics: Forensics;
   iocs: IOCs;
+  threat_assessment: ThreatAssessment;
 };
 
 export class AnalyzeEmailError extends Error {}
