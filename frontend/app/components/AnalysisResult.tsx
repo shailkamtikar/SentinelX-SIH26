@@ -1,4 +1,12 @@
-import type { ParsedEmail } from "../lib/analyzeEmail";
+import type { ReactNode } from "react";
+
+import type {
+  AttachmentHashIndicator,
+  DomainIndicator,
+  IPIndicator,
+  ParsedEmail,
+  URLIndicator,
+} from "../lib/analyzeEmail";
 
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
@@ -14,6 +22,85 @@ function EvidenceRow({ text }: { text: string }) {
     <li className="break-all rounded-sm border border-border-structural bg-surface-container px-3 py-1.5 font-mono text-[11px] text-text-secondary">
       {text}
     </li>
+  );
+}
+
+function SourceTag({ sources }: { sources: string[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <span className="ml-2 shrink-0 font-mono text-[9px] uppercase tracking-wide text-text-dim">
+      {sources.join(", ")}
+    </span>
+  );
+}
+
+function IPIndicatorRow({ entry }: { entry: IPIndicator }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
+      <span className="mr-2 flex items-center gap-2 text-text-secondary">
+        <span>{entry.value}</span>
+        {entry.private && (
+          <span className="rounded-sm border border-neutral/40 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-widest text-neutral">
+            Private
+          </span>
+        )}
+      </span>
+      <SourceTag sources={entry.sources} />
+    </li>
+  );
+}
+
+function DomainIndicatorRow({ entry }: { entry: DomainIndicator }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
+      <span className="mr-2 break-all text-text-secondary">{entry.value}</span>
+      <SourceTag sources={entry.sources} />
+    </li>
+  );
+}
+
+function URLIndicatorRow({ entry }: { entry: URLIndicator }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
+      <span className="mr-2 break-all text-sky">{entry.value}</span>
+      <SourceTag sources={entry.sources} />
+    </li>
+  );
+}
+
+function AttachmentHashRow({ entry }: { entry: AttachmentHashIndicator }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 rounded-sm border border-border-structural bg-surface-container px-3 py-2 font-mono text-[11px]">
+      <span className="text-text-secondary">{entry.filename ?? "(unnamed)"}</span>
+      <span className="break-all text-text-dim">{entry.sha256 ?? "Hash unavailable"}</span>
+    </li>
+  );
+}
+
+function IOCGroup<T>({
+  label,
+  entries,
+  emptyText,
+  renderRow,
+}: {
+  label: string;
+  entries: T[];
+  emptyText: string;
+  renderRow: (entry: T, index: number) => ReactNode;
+}) {
+  return (
+    <div className="mt-3 first:mt-0">
+      <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim">
+        {label} ({entries.length})
+      </p>
+      {entries.length === 0 ? (
+        <p className="mt-1.5 font-mono text-[11px] text-text-dim">{emptyText}</p>
+      ) : (
+        <ul className="mt-1.5 flex flex-col gap-1.5">
+          {entries.map((entry, index) => renderRow(entry, index))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -168,6 +255,49 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="border-t border-border-structural px-4 py-3.5">
+        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-cyan">
+          Indicators of Compromise
+        </p>
+
+        <IOCGroup
+          label="IPv4"
+          entries={result.iocs.ipv4}
+          emptyText="No IPv4 indicators found."
+          renderRow={(entry) => <IPIndicatorRow key={entry.value} entry={entry} />}
+        />
+
+        <IOCGroup
+          label="IPv6"
+          entries={result.iocs.ipv6}
+          emptyText="No IPv6 indicators found."
+          renderRow={(entry) => <IPIndicatorRow key={entry.value} entry={entry} />}
+        />
+
+        <IOCGroup
+          label="Domains"
+          entries={result.iocs.domains}
+          emptyText="No domain indicators found."
+          renderRow={(entry) => <DomainIndicatorRow key={entry.value} entry={entry} />}
+        />
+
+        <IOCGroup
+          label="URL Indicators"
+          entries={result.iocs.urls}
+          emptyText="No URL indicators found."
+          renderRow={(entry) => <URLIndicatorRow key={entry.value} entry={entry} />}
+        />
+
+        <IOCGroup
+          label="Attachment SHA-256"
+          entries={result.iocs.attachment_hashes}
+          emptyText="No attachment hashes found."
+          renderRow={(entry, index) => (
+            <AttachmentHashRow key={`${entry.filename ?? "unnamed"}-${index}`} entry={entry} />
+          )}
+        />
       </div>
     </div>
   );

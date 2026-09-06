@@ -16,6 +16,35 @@ export type Forensics = {
   routing_flags: string[];
 };
 
+export type IPIndicator = {
+  value: string;
+  sources: string[];
+  private: boolean;
+};
+
+export type DomainIndicator = {
+  value: string;
+  sources: string[];
+};
+
+export type URLIndicator = {
+  value: string;
+  sources: string[];
+};
+
+export type AttachmentHashIndicator = {
+  filename: string | null;
+  sha256: string | null;
+};
+
+export type IOCs = {
+  ipv4: IPIndicator[];
+  ipv6: IPIndicator[];
+  domains: DomainIndicator[];
+  urls: URLIndicator[];
+  attachment_hashes: AttachmentHashIndicator[];
+};
+
 export type ParsedEmail = {
   sender: string | null;
   recipient: string | null;
@@ -28,6 +57,7 @@ export type ParsedEmail = {
   attachments: Attachment[];
   urls: string[];
   forensics: Forensics;
+  iocs: IOCs;
 };
 
 export class AnalyzeEmailError extends Error {}
