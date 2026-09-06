@@ -70,6 +70,26 @@ class GeminiClientLike(Protocol):
     def models(self) -> Any: ...
 
 
+def _cap_items(items: Any, *, limit: int = _MAX_LIST_ITEMS) -> list[Any]:
+    """Bound list length sent to the model as evidence.
+
+    A real uploaded email can carry far more received-chain hops or IOCs
+    than the small fixtures used to size max_output_tokens. An unbounded
+    prompt can grow large enough to consume the model's mandatory
+    "thinking" token budget and re-trigger the same finish_reason=MAX_TOKENS
+    truncation that budget was raised to fix — just at a larger input size.
+    """
+    if not isinstance(items, list):
+        return []
+    return items[:limit]
+
+
+def _cap_text(value: Any, *, limit: int = _MAX_ITEM_CHARS) -> Any:
+    if isinstance(value, str):
+        return value[:limit]
+    return value
+
+
 def build_evidence_payload(response: dict[str, Any]) -> dict[str, Any]:
     """Structured evidence subset sent to the model.
 
@@ -79,6 +99,7 @@ def build_evidence_payload(response: dict[str, Any]) -> dict[str, Any]:
     forensics = response.get("forensics") or {}
     threat = response.get("threat_assessment") or {}
     iocs = response.get("iocs") or {}
+    enrichment = response.get("enrichment") or {}
 
     return {
         "identity": {
@@ -95,17 +116,22 @@ def build_evidence_payload(response: dict[str, Any]) -> dict[str, Any]:
             "authentication_results_raw": forensics.get("authentication_results_raw"),
         },
         "routing": {
-            "routing_flags": forensics.get("routing_flags") or [],
-            "received_chain": forensics.get("received_chain") or [],
+            "routing_flags": _cap_items(forensics.get("routing_flags") or []),
+            "received_chain": [
+                _cap_text(hop) for hop in _cap_items(forensics.get("received_chain") or [])
+            ],
         },
         "indicators": {
-            "ipv4": iocs.get("ipv4") or [],
-            "ipv6": iocs.get("ipv6") or [],
-            "domains": iocs.get("domains") or [],
-            "urls": iocs.get("urls") or [],
-            "attachment_hashes": iocs.get("attachment_hashes") or [],
+            "ipv4": _cap_items(iocs.get("ipv4") or []),
+            "ipv6": _cap_items(iocs.get("ipv6") or []),
+            "domains": _cap_items(iocs.get("domains") or []),
+            "urls": _cap_items(iocs.get("urls") or []),
+            "attachment_hashes": _cap_items(iocs.get("attachment_hashes") or []),
         },
-        "indicator_enrichment": response.get("enrichment") or {},
+        "indicator_enrichment": {
+            key: (_cap_items(value) if isinstance(value, list) else value)
+            for key, value in enrichment.items()
+        },
         "deterministic_assessment": {
             "risk_level": threat.get("risk_level"),
             "reasons": threat.get("reasons") or [],

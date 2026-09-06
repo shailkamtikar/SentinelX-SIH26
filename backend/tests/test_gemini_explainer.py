@@ -175,6 +175,51 @@ def test_deterministic_assessment_is_marked_authoritative_in_the_payload():
     assert "Do not contradict or override it." in note
 
 
+def test_evidence_payload_bounds_list_sizes_for_a_large_real_world_email():
+    """Regression: build_evidence_payload previously sent forensics/IOC lists
+    to the model completely unbounded. A real uploaded email can carry far
+    more received-chain hops and IOCs than the small test fixtures used to
+    size max_output_tokens, so an unbounded prompt can grow large enough to
+    re-trigger the same thinking-token MAX_TOKENS truncation that budget was
+    raised to fix — just past a larger input size. Evidence lists sent to
+    the model must stay bounded regardless of how large the source email is.
+    """
+    huge_chain = [f"from mx{i}.example.com by mx{i + 1}.example.com" for i in range(50)]
+    huge_ips = [{"value": f"203.0.113.{i}", "sources": ["received"], "private": False} for i in range(50)]
+
+    response = {
+        "sender": "attacker@example.com",
+        "recipient": "victim@example.org",
+        "subject": "test",
+        "reply_to": None,
+        "return_path": None,
+        "forensics": {
+            "spf_result": "fail",
+            "dkim_result": "fail",
+            "dmarc_result": "fail",
+            "authentication_results_raw": None,
+            "routing_flags": ["reply_to_domain_mismatch"] * 50,
+            "received_chain": huge_chain,
+        },
+        "iocs": {
+            "ipv4": huge_ips,
+            "ipv6": [],
+            "domains": [],
+            "urls": [],
+            "attachment_hashes": [],
+        },
+        "enrichment": {"ip": huge_ips, "url": []},
+        "threat_assessment": {"risk_level": "HIGH", "reasons": ["many hops"]},
+    }
+
+    payload = build_evidence_payload(response)
+
+    assert len(payload["routing"]["received_chain"]) <= 8
+    assert len(payload["routing"]["routing_flags"]) <= 8
+    assert len(payload["indicators"]["ipv4"]) <= 8
+    assert len(payload["indicator_enrichment"]["ip"]) <= 8
+
+
 def test_raw_eml_and_message_body_are_never_sent_to_the_model():
     response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
     payload = build_evidence_payload(response)
