@@ -17,10 +17,15 @@ NOT a chain-of-custody or tamper-evidence guarantee.
 
 from __future__ import annotations
 
-import hashlib
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from app.config import get_settings
+from app.services.evidence_storage import (
+    EvidenceBucketMissingError,
+    compute_raw_eml_sha256,
+    upload_raw_eml,
+)
 
 _DEFAULT_CASE_TITLE = "Default Prototype Case"
 
@@ -175,13 +180,61 @@ def _build_attachment_hash_rows(email_id: str, iocs: dict[str, Any]) -> list[dic
     ]
 
 
+@dataclass
+class PersistenceOutcome:
+    """What actually happened, so the route can report truthful status."""
+
+    email_id: str
+    raw_eml_sha256: str
+    # Internal object path inside the PRIVATE bucket, or None when the raw
+    # .eml was not stored. Never a public URL.
+    raw_eml_storage_path: str | None = None
+    # Non-secret marker for why storage did not happen: "bucket_missing"
+    # or "upload_failed". None when the upload succeeded.
+    storage_error: str | None = None
+
+
+def _store_raw_eml(
+    client: SupabaseClientLike,
+    *,
+    case_id: str,
+    email_id: str,
+    raw_bytes: bytes,
+) -> tuple[str | None, str | None]:
+    """Best-effort upload + path write-back. Returns (path, error_marker).
+
+    Isolated from the rest of persistence on purpose: a Storage outage or
+    an unconfigured bucket must not stop the IOC child rows from being
+    written, and must never fake a stored state.
+    """
+    try:
+        path = upload_raw_eml(
+            client, case_id=case_id, email_id=email_id, raw_bytes=raw_bytes
+        )
+    except EvidenceBucketMissingError:
+        return None, "bucket_missing"
+    except Exception:
+        return None, "upload_failed"
+
+    try:
+        client.table("emails").update({"raw_eml_storage_path": path}).eq(
+            "id", email_id
+        ).execute()
+    except Exception:
+        # The object exists but the row could not be pointed at it. Report
+        # it as not stored rather than claiming a link that isn't recorded.
+        return None, "path_update_failed"
+
+    return path, None
+
+
 def persist_analysis(
     *,
     raw_bytes: bytes,
     filename: str | None,
     response: dict[str, Any],
     client: SupabaseClientLike | None = None,
-) -> None:
+) -> PersistenceOutcome:
     """Persist one successful /analyze-email response to Supabase.
 
     Uses the response dict exactly as already assembled — no re-parsing,
@@ -189,15 +242,22 @@ def persist_analysis(
     configuration, network error, etc.); the caller is responsible for
     catching broadly so a persistence failure can never change the API
     response or turn a successful analysis into an HTTP error.
+
+    Raw .eml upload is a nested best-effort step: it can fail without
+    preventing the email row or the IOC child rows from being written.
     """
     resolved_client = client or _get_client()
 
     case_id = _get_or_create_default_case(resolved_client)
-    raw_eml_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    raw_eml_sha256 = compute_raw_eml_sha256(raw_bytes)
 
     email_row = _build_email_row(case_id, filename, raw_eml_sha256, response)
     email_result = resolved_client.table("emails").insert(email_row).execute()
     email_id = email_result.data[0]["id"]
+
+    storage_path, storage_error = _store_raw_eml(
+        resolved_client, case_id=case_id, email_id=email_id, raw_bytes=raw_bytes
+    )
 
     iocs = response.get("iocs") or {}
     enrichment = response.get("enrichment") or {}
@@ -217,3 +277,10 @@ def persist_analysis(
         resolved_client.table("ioc_urls").insert(url_rows).execute()
     if attachment_rows:
         resolved_client.table("ioc_attachment_hashes").insert(attachment_rows).execute()
+
+    return PersistenceOutcome(
+        email_id=email_id,
+        raw_eml_sha256=raw_eml_sha256,
+        raw_eml_storage_path=storage_path,
+        storage_error=storage_error,
+    )

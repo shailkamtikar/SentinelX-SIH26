@@ -69,6 +69,33 @@ export type Enrichment = {
   url: URLEnrichment[];
 };
 
+/**
+ * Optional, evidence-grounded explanation produced by the Gemini stage.
+ * Null whenever the stage is unconfigured, fails, or returns unusable
+ * output — the deterministic threat_assessment stays authoritative.
+ */
+export type AIExplanation = {
+  summary: string;
+  evidence_points: string[];
+  uncertainty: string;
+  recommended_actions: string[];
+};
+
+/**
+ * Why ai_explanation is (or isn't) present:
+ * - "ok"             — an explanation was produced
+ * - "not_configured" — GEMINI_API_KEY is not set server-side
+ * - "unavailable"    — configured, but the call failed or returned
+ *                       unusable output
+ */
+export type AIExplanationStatus = "ok" | "not_configured" | "unavailable";
+
+/** Truthful evidence-handling status. Never a public storage URL. */
+export type EvidenceStatus = {
+  raw_eml_sha256: string | null;
+  raw_eml_stored: boolean;
+};
+
 export type ParsedEmail = {
   sender: string | null;
   recipient: string | null;
@@ -84,6 +111,9 @@ export type ParsedEmail = {
   iocs: IOCs;
   threat_assessment: ThreatAssessment;
   enrichment: Enrichment;
+  ai_explanation: AIExplanation | null;
+  ai_explanation_status: AIExplanationStatus;
+  evidence: EvidenceStatus | null;
 };
 
 export class AnalyzeEmailError extends Error {}

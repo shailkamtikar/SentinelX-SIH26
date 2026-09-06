@@ -1,11 +1,18 @@
+import logging
+
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
+from app.config import get_settings
 from app.services.analysis_store import persist_analysis
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
+from app.services.evidence_storage import compute_raw_eml_sha256
+from app.services.gemini_explainer import explain_analysis
 from app.services.ioc_enrichment import EnrichmentReport, enrich_iocs
 from app.services.ioc_extraction import IOCReport, extract_iocs
 from app.services.threat_assessment import ThreatAssessment, assess_threat
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -86,13 +93,56 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
     response["threat_assessment"] = assessment.to_dict()
     response["enrichment"] = enrichment.to_dict()
 
+    # Optional AI explanation. Strictly subordinate to the deterministic
+    # assessment above and strictly best-effort: no key, an API failure or
+    # unusable model output all resolve to null rather than invented text.
+    # Added before persistence so it is captured in emails.parsed_response.
+    #
+    # ai_explanation_status distinguishes *why* ai_explanation is null so
+    # the frontend never tells an operator to "configure GEMINI_API_KEY"
+    # when it already is configured:
+    #   "ok"             — an explanation was produced
+    #   "not_configured" — GEMINI_API_KEY is not set
+    #   "unavailable"    — configured, but the call failed or the model
+    #                      returned unusable output
+    try:
+        explanation = explain_analysis(response)
+        ai_explanation_status = "ok" if explanation else None
+    except Exception as exc:
+        explanation = None
+        ai_explanation_status = None
+        # Exception TYPE only — never str(exc), which could echo request
+        # details or provider error text. Never the API key.
+        logger.warning("Gemini explanation unavailable: %s", type(exc).__name__)
+
+    if ai_explanation_status is None:
+        # explain_analysis returned None cleanly (no exception): either
+        # Gemini was never configured, or it was configured but the model
+        # returned unusable output.
+        ai_explanation_status = "not_configured" if not get_settings().gemini_configured else "unavailable"
+
+    response["ai_explanation"] = explanation.to_dict() if explanation else None
+    response["ai_explanation_status"] = ai_explanation_status
+
     # Persistence to Supabase happens only after the response above is
     # fully assembled, and is additive/best-effort like every stage above:
     # a database or network failure must never change this response or
     # turn a successful analysis into an HTTP error.
+    outcome = None
     try:
-        persist_analysis(raw_bytes=raw_bytes, filename=file.filename, response=response)
+        outcome = persist_analysis(
+            raw_bytes=raw_bytes, filename=file.filename, response=response
+        )
     except Exception:
         pass
+
+    # Truthful evidence status. The whole-file hash is computed locally and
+    # is therefore always available, independently of Supabase. Storage is
+    # reported as stored only when an object path was actually recorded —
+    # and the internal path itself is never exposed to the client.
+    response["evidence"] = {
+        "raw_eml_sha256": compute_raw_eml_sha256(raw_bytes),
+        "raw_eml_stored": bool(outcome and outcome.raw_eml_storage_path),
+    }
 
     return response

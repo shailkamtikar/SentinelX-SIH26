@@ -44,3 +44,32 @@ def test_missing_dotenv_file_is_a_graceful_no_op(tmp_path, monkeypatch):
 
     assert result is False
     assert "SUPABASE_URL" not in os.environ
+
+
+# --- Gemini model configuration -----------------------------------------
+
+
+def test_gemini_model_defaults_when_env_var_is_absent(monkeypatch):
+    from app.config import DEFAULT_GEMINI_MODEL, get_settings
+
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+
+    assert get_settings().gemini_model == DEFAULT_GEMINI_MODEL
+
+
+def test_gemini_model_env_var_overrides_the_default(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("GEMINI_MODEL", "some-other-model")
+
+    assert get_settings().gemini_model == "some-other-model"
+
+
+def test_gemini_configured_reflects_only_the_api_key(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert get_settings().gemini_configured is False
+
+    monkeypatch.setenv("GEMINI_API_KEY", "present")
+    assert get_settings().gemini_configured is True

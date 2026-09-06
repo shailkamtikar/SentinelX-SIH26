@@ -1,4 +1,3 @@
-from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -7,6 +6,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services import analysis_store
 from app.services.analysis_store import persist_analysis
+from app.services.evidence_storage import EVIDENCE_BUCKET
+from tests.fakes import FakeSupabaseClient as _FakeSupabaseClient
 
 client = TestClient(app)
 
@@ -15,55 +16,8 @@ SAMPLE_EML_BYTES = (FIXTURES_DIR / "sample.eml").read_bytes()
 FORENSICS_EML_BYTES = (FIXTURES_DIR / "sample_with_forensics.eml").read_bytes()
 
 
-# --- A tiny fake Supabase client — just enough of the table()/select()/
-# insert()/limit()/execute() surface that analysis_store.py actually uses.
-
-
-class _FakeResult:
-    def __init__(self, data):
-        self.data = data
-
-
-class _FakeTable:
-    def __init__(self, store: "_FakeSupabaseClient", name: str):
-        self._store = store
-        self._name = name
-        self._pending_insert = None
-
-    def select(self, *_args, **_kwargs):
-        return self
-
-    def limit(self, _n):
-        return self
-
-    def insert(self, row_or_rows):
-        self._pending_insert = row_or_rows
-        return self
-
-    def execute(self):
-        if self._pending_insert is not None:
-            rows = (
-                self._pending_insert
-                if isinstance(self._pending_insert, list)
-                else [self._pending_insert]
-            )
-            inserted = []
-            for row in rows:
-                stored = dict(row)
-                stored.setdefault("id", f"{self._name}-{len(self._store.tables[self._name]) + 1}")
-                self._store.tables[self._name].append(stored)
-                inserted.append(stored)
-            self._pending_insert = None
-            return _FakeResult(inserted)
-        return _FakeResult(list(self._store.tables[self._name]))
-
-
-class _FakeSupabaseClient:
-    def __init__(self):
-        self.tables: dict[str, list[dict]] = defaultdict(list)
-
-    def table(self, name: str) -> _FakeTable:
-        return _FakeTable(self, name)
+# The in-memory Supabase fake lives in tests/fakes.py so the persistence
+# and evidence-storage tests share one implementation.
 
 
 @pytest.fixture(autouse=True)
@@ -129,7 +83,9 @@ def test_email_row_maps_header_forensics_and_threat_fields():
     assert row["received_chain"] == response["forensics"]["received_chain"]
     assert row["threat_risk_level"] == "HIGH"
     assert row["threat_reasons"] == response["threat_assessment"]["reasons"]
-    assert row["raw_eml_storage_path"] is None
+    # Raw .eml storage is implemented as of this milestone: the row is
+    # inserted with a NULL path and then pointed at the uploaded object.
+    assert row["raw_eml_storage_path"] == f"{row['case_id']}/{row['id']}.eml"
     assert row["parsed_response"] == response
 
 
@@ -305,3 +261,102 @@ def test_route_calls_persist_analysis_with_raw_bytes_filename_and_response():
     assert captured["raw_bytes"] == SAMPLE_EML_BYTES
     assert captured["filename"] == "sample.eml"
     assert captured["response"] == response.json()
+
+
+# --- Raw .eml evidence storage integration -----------------------------------
+
+
+def test_raw_eml_uploaded_to_private_bucket_with_expected_path_and_bytes():
+    fake = _FakeSupabaseClient()
+    response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
+
+    outcome = persist_analysis(
+        raw_bytes=SAMPLE_EML_BYTES, filename="sample.eml", response=response, client=fake
+    )
+
+    assert len(fake.uploads) == 1
+    upload = fake.uploads[0]
+    assert upload["bucket"] == EVIDENCE_BUCKET
+    # Path convention: {case_id}/{email_id}.eml
+    email_row = fake.tables["emails"][0]
+    assert upload["path"] == f"{email_row['case_id']}/{email_row['id']}.eml"
+    # ORIGINAL bytes, passed through completely unchanged.
+    assert upload["file"] == SAMPLE_EML_BYTES
+    assert upload["file_options"]["content-type"] == "message/rfc822"
+
+    assert outcome.raw_eml_storage_path == upload["path"]
+    assert outcome.storage_error is None
+
+
+def test_successful_upload_writes_storage_path_back_to_the_email_row():
+    fake = _FakeSupabaseClient()
+    response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
+
+    persist_analysis(
+        raw_bytes=SAMPLE_EML_BYTES, filename="sample.eml", response=response, client=fake
+    )
+
+    row = fake.tables["emails"][0]
+    assert row["raw_eml_storage_path"] == f"{row['case_id']}/{row['id']}.eml"
+
+
+def test_missing_bucket_leaves_storage_path_null_and_is_reported():
+    fake = _FakeSupabaseClient(missing_bucket=True)
+    response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
+
+    outcome = persist_analysis(
+        raw_bytes=SAMPLE_EML_BYTES, filename="sample.eml", response=response, client=fake
+    )
+
+    assert fake.uploads == []
+    assert outcome.raw_eml_storage_path is None
+    assert outcome.storage_error == "bucket_missing"
+    # No fake "stored" state anywhere.
+    assert fake.tables["emails"][0]["raw_eml_storage_path"] is None
+
+
+def test_storage_outage_leaves_storage_path_null_but_keeps_persisting_iocs():
+    fake = _FakeSupabaseClient(upload_error=True)
+    response = _analyze(FORENSICS_EML_BYTES, "sample_with_forensics.eml")
+
+    outcome = persist_analysis(
+        raw_bytes=FORENSICS_EML_BYTES,
+        filename="sample_with_forensics.eml",
+        response=response,
+        client=fake,
+    )
+
+    assert outcome.raw_eml_storage_path is None
+    assert outcome.storage_error == "upload_failed"
+    assert fake.tables["emails"][0]["raw_eml_storage_path"] is None
+    # Storage failure must not stop the rest of persistence.
+    assert len(fake.tables["emails"]) == 1
+    assert len(fake.tables["ioc_ips"]) == 3
+    assert len(fake.tables["ioc_domains"]) == 3
+
+
+def test_path_writeback_failure_does_not_claim_the_eml_was_stored():
+    fake = _FakeSupabaseClient(update_error=True)
+    response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
+
+    outcome = persist_analysis(
+        raw_bytes=SAMPLE_EML_BYTES, filename="sample.eml", response=response, client=fake
+    )
+
+    assert outcome.raw_eml_storage_path is None
+    assert outcome.storage_error == "path_update_failed"
+
+
+def test_raw_eml_bytes_are_never_written_into_postgres():
+    fake = _FakeSupabaseClient()
+    response = _analyze(SAMPLE_EML_BYTES, "sample.eml")
+
+    persist_analysis(
+        raw_bytes=SAMPLE_EML_BYTES, filename="sample.eml", response=response, client=fake
+    )
+
+    row = fake.tables["emails"][0]
+    serialized = repr(row)
+    # Only the hash and the object path — never the raw bytes themselves.
+    assert SAMPLE_EML_BYTES.decode("utf-8", "ignore")[:200] not in serialized
+    assert row["raw_eml_sha256"]

@@ -3,8 +3,11 @@
 import { useState, type ReactNode } from "react";
 
 import type {
+  AIExplanation,
+  AIExplanationStatus,
   AttachmentHashIndicator,
   DomainIndicator,
+  EvidenceStatus,
   IPIndicator,
   ParsedEmail,
   ThreatAssessment,
@@ -277,6 +280,107 @@ function ThreatAssessmentCard({ assessment }: { assessment: ThreatAssessment }) 
   );
 }
 
+/**
+ * Optional AI stage, kept visually subordinate to the deterministic
+ * assessment above it. When unavailable this states so plainly — no
+ * placeholder or invented explanation is ever rendered.
+ */
+function AIExplanationCard({
+  explanation,
+  status,
+}: {
+  explanation: AIExplanation | null | undefined;
+  status: AIExplanationStatus | undefined;
+}) {
+  return (
+    <Section title="AI-assisted explanation">
+      {explanation ? (
+        <>
+          <p className="text-[13px] leading-6 text-text-secondary">{explanation.summary}</p>
+
+          {explanation.evidence_points.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Evidence</h4>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {explanation.evidence_points.map((point, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2.5 text-[13px] leading-6 text-text-secondary"
+                  >
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-text-dim" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {explanation.uncertainty && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Uncertainty</h4>
+              <p className="mt-2 text-[13px] leading-6 text-text-dim">{explanation.uncertainty}</p>
+            </div>
+          )}
+
+          {explanation.recommended_actions.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Recommended actions</h4>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {explanation.recommended_actions.map((action, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2.5 text-[13px] leading-6 text-text-secondary"
+                  >
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-text-dim" />
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="mt-5 text-[11px] leading-5 text-text-dim">
+            AI-assisted explanation generated from extracted forensic evidence. It does not
+            replace analyst judgment or independent threat intelligence.
+          </p>
+        </>
+      ) : status === "unavailable" ? (
+        <p className="text-[13px] leading-6 text-text-dim">
+          AI explanation unavailable — the explanation service could not be reached or returned
+          an unusable response. The deterministic assessment above remains authoritative.
+        </p>
+      ) : (
+        <p className="text-[13px] leading-6 text-text-dim">
+          AI explanation unavailable — configure GEMINI_API_KEY to enable this stage. The
+          deterministic assessment above remains authoritative.
+        </p>
+      )}
+    </Section>
+  );
+}
+
+/** Truthful evidence-handling status. Never shows a public storage URL. */
+function EvidenceStatusFields({ evidence }: { evidence: EvidenceStatus | null | undefined }) {
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-border-structural/50 pt-5 print:mt-0 print:border-t-0 print:pt-0 sm:grid-cols-2">
+      <div className="flex flex-col gap-1">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-dim">
+          Original EML SHA-256
+        </p>
+        <p className="break-all font-mono text-[11px] leading-5 text-text-secondary">
+          {evidence?.raw_eml_sha256 ?? "Not available"}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-dim">Raw EML storage</p>
+        <p className="font-mono text-[12px] leading-5 text-text-secondary">
+          {evidence?.raw_eml_stored ? "Stored (private)" : "Unavailable"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalysisResult({ result }: { result: ParsedEmail }) {
   // Captured once when this evidence view is rendered — a real,
   // client-generated timestamp, not a server or cryptographic one.
@@ -333,6 +437,12 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
 
       {/* 2. Threat assessment — the focal point */}
       <ThreatAssessmentCard assessment={result.threat_assessment} />
+
+      {/* 2b. Optional AI explanation of the evidence above (EXPLAIN stage) */}
+      <AIExplanationCard
+        explanation={result.ai_explanation}
+        status={result.ai_explanation_status}
+      />
 
       {/* 3. Authentication evidence */}
       <Section title="Email authentication">
@@ -523,8 +633,10 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
       </Section>
 
       {/* 7. Evidence / report action */}
-      <section className="print:hidden rounded-card border border-border-structural/50 bg-surface-container p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+      <section className="rounded-card border border-border-structural/50 bg-surface-container p-5 sm:p-6">
+        {/* The export control itself is screen-only; the evidence status
+            below it belongs in the printed summary. */}
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
           <div className="min-w-0">
             <h3 className="text-[13px] font-medium text-text-primary">Evidence Summary</h3>
             <p className="mt-1.5 max-w-lg text-[12px] leading-5 text-text-dim">
@@ -541,6 +653,8 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
             Export Evidence Summary
           </button>
         </div>
+
+        <EvidenceStatusFields evidence={result.evidence} />
       </section>
     </div>
   );

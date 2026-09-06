@@ -25,16 +25,28 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env", override=False)
 
 
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+
+
 @dataclass(frozen=True)
 class Settings:
     supabase_url: str | None
     # Server-only secret (the Supabase "service role"/secret key). Must
     # never be exposed to the frontend or logged.
     supabase_secret_key: str | None
+    # Server-only secret. Optional: the AI explanation stage is skipped
+    # entirely when this is absent, and the deterministic assessment
+    # remains authoritative either way.
+    gemini_api_key: str | None
+    gemini_model: str
 
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_secret_key)
+
+    @property
+    def gemini_configured(self) -> bool:
+        return bool(self.gemini_api_key)
 
 
 def get_settings() -> Settings:
@@ -46,4 +58,6 @@ def get_settings() -> Settings:
     return Settings(
         supabase_url=os.environ.get("SUPABASE_URL") or None,
         supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY") or None,
+        gemini_api_key=os.environ.get("GEMINI_API_KEY") or None,
+        gemini_model=os.environ.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL,
     )
