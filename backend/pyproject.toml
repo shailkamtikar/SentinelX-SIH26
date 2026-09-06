@@ -1,0 +1,16 @@
+[project]
+name = "sentinelx-backend"
+version = "0.1.0"
+description = "SentinelX backend — Step 1: real .eml ingestion and structured parsing."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
