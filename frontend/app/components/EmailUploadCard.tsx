@@ -9,7 +9,11 @@ import {
   type SVGProps,
 } from "react";
 
+import { analyzeEmail, AnalyzeEmailError, type ParsedEmail } from "../lib/analyzeEmail";
+import AnalysisResult from "./AnalysisResult";
+
 type Status = "empty" | "selected" | "invalid";
+type AnalysisState = "idle" | "loading" | "success" | "error";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -31,7 +35,9 @@ export default function EmailUploadCard() {
   const [status, setStatus] = useState<Status>("empty");
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [analyzeRequested, setAnalyzeRequested] = useState(false);
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<ParsedEmail | null>(null);
 
   const acceptFile = useCallback((candidate: File | undefined) => {
     if (!candidate) return;
@@ -42,14 +48,18 @@ export default function EmailUploadCard() {
       setErrorMessage(
         `REJECTED: "${candidate.name}" — .eml file required.`,
       );
-      setAnalyzeRequested(false);
+      setAnalysisState("idle");
+      setAnalysisError(null);
+      setAnalysisResult(null);
       return;
     }
 
     setFile(candidate);
     setStatus("selected");
     setErrorMessage(null);
-    setAnalyzeRequested(false);
+    setAnalysisState("idle");
+    setAnalysisError(null);
+    setAnalysisResult(null);
   }, []);
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -77,15 +87,34 @@ export default function EmailUploadCard() {
     setFile(null);
     setStatus("empty");
     setErrorMessage(null);
-    setAnalyzeRequested(false);
+    setAnalysisState("idle");
+    setAnalysisError(null);
+    setAnalysisResult(null);
   };
 
   const handleBrowseClick = () => {
     inputRef.current?.click();
   };
 
-  const handleAnalyzeClick = () => {
-    setAnalyzeRequested(true);
+  const handleAnalyzeClick = async () => {
+    if (!file || status !== "selected" || analysisState === "loading") return;
+
+    setAnalysisState("loading");
+    setAnalysisError(null);
+    setAnalysisResult(null);
+
+    try {
+      const result = await analyzeEmail(file);
+      setAnalysisResult(result);
+      setAnalysisState("success");
+    } catch (error) {
+      const message =
+        error instanceof AnalyzeEmailError
+          ? error.message
+          : "Unexpected error while contacting the analysis backend.";
+      setAnalysisError(message);
+      setAnalysisState("error");
+    }
   };
 
   const dropzoneAccent =
@@ -192,27 +221,43 @@ export default function EmailUploadCard() {
               <MetaRow label="File Size" value={formatFileSize(file.size)} />
               <MetaRow label="MIME Type" value={file.type || "UNKNOWN"} />
               <MetaRow label="Last Modified" value={formatTimestamp(file.lastModified)} />
-              <MetaRow label="SHA-256" value="PENDING — backend not connected" dim />
-              <MetaRow label="Ingestion Status" value="STAGED" accent />
+              <MetaRow label="SHA-256" value="PENDING — not returned by backend" dim />
+              <MetaRow
+                label="Ingestion Status"
+                value={analysisState === "success" ? "ANALYZED" : "STAGED"}
+                accent
+              />
             </dl>
           </div>
         )}
 
         <button
           type="button"
-          disabled={status !== "selected"}
+          disabled={status !== "selected" || analysisState === "loading"}
           onClick={handleAnalyzeClick}
           className="mt-5 flex w-full items-center justify-center rounded-sm bg-cyan px-4 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-canvas-deep transition-colors hover:bg-cyan-light disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-text-dim"
         >
-          Analyze Email
+          {analysisState === "loading" ? "Analyzing…" : "Analyze Email"}
         </button>
 
-        {analyzeRequested && (
+        {analysisState === "loading" && (
           <p className="mt-3 rounded-sm border border-border-structural bg-surface-lowest px-3 py-2 font-mono text-[10px] leading-4 text-text-dim">
             <span className="text-cyan">{"> "}</span>
-            Analysis pipeline not connected. This action is wired and awaiting backend
-            integration.
+            Sending evidence to the analysis backend…
           </p>
+        )}
+
+        {analysisState === "error" && analysisError && (
+          <p
+            className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 font-mono text-[11px] text-critical"
+            role="alert"
+          >
+            ANALYSIS FAILED: {analysisError}
+          </p>
+        )}
+
+        {analysisState === "success" && analysisResult && (
+          <AnalysisResult result={analysisResult} />
         )}
       </div>
     </div>
