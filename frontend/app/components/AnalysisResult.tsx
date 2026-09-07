@@ -387,12 +387,17 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
   const [generatedAt] = useState(() => new Date());
 
   // Offline enrichment is joined back onto the existing IOC rows by value
-  // rather than reshaping iocs itself — see ioc_enrichment.py.
+  // rather than reshaping iocs itself — see ioc_enrichment.py. Guarded with
+  // a fallback: enrichment is always present in the backend contract, but
+  // this view must never crash (and hide the AI explanation below it) if a
+  // response is ever missing it.
   const ipClassificationByValue = new Map(
-    result.enrichment.ip.map((entry) => [entry.value, entry.classification]),
+    (result.enrichment?.ip ?? []).map((entry) => [entry.value, entry.classification]),
   );
   const knownShortenerUrls = new Set(
-    result.enrichment.url.filter((entry) => entry.known_url_shortener).map((entry) => entry.value),
+    (result.enrichment?.url ?? [])
+      .filter((entry) => entry.known_url_shortener)
+      .map((entry) => entry.value),
   );
 
   return (
