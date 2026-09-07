@@ -45,6 +45,17 @@
   --font-mono: var(--font-jetbrains-mono);
 }
 
+:root {
+  /* Shared interaction timing — one duration/curve for every ordinary
+     hover/focus transition in the app, so controls feel like one calm
+     system rather than each component inventing its own timing. Applied
+     via the .transition-soft utility below, alongside whichever Tailwind
+     transition-property utility (transition-colors, etc.) a component
+     already uses. */
+  --transition-duration-soft: 170ms;
+  --transition-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 body {
   background: var(--color-canvas);
   color: var(--color-text-primary);
@@ -53,6 +64,69 @@ body {
 ::selection {
   background: var(--color-cyan);
   color: var(--color-canvas-deep);
+}
+
+.transition-soft {
+  transition-duration: var(--transition-duration-soft);
+  transition-timing-function: var(--transition-ease-soft);
+}
+
+/* Active-pipeline-stage signal only — deliberately not used anywhere else.
+   A steady glow (no animation) for a stage that is simply "current" (e.g.
+   INGEST once a file is staged), and a slow ambient pulse layered on top
+   only for the ANALYZE stage while the backend request is actually in
+   flight. Neither implies a percentage or a timed sequence — the pulse
+   communicates "processing, duration unknown", not progress. */
+.pipeline-stage-glow {
+  box-shadow:
+    0 0 0 1px rgba(56, 182, 216, 0.28),
+    0 0 14px 0 rgba(56, 182, 216, 0.16);
+}
+
+@keyframes pipeline-stage-ambient-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(56, 182, 216, 0.28),
+      0 0 10px 0 rgba(56, 182, 216, 0.14);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(56, 182, 216, 0.4),
+      0 0 20px 2px rgba(56, 182, 216, 0.26);
+  }
+}
+
+.pipeline-stage-pulse {
+  animation: pipeline-stage-ambient-pulse 2.4s var(--transition-ease-soft) infinite;
+}
+
+@keyframes pipeline-dot-ambient-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.pipeline-dot-pulse {
+  animation: pipeline-dot-ambient-pulse 2.4s var(--transition-ease-soft) infinite;
+}
+
+/* Global reduced-motion treatment: state must stay legible from static
+   color/opacity alone, never from animation — this just removes the
+   motion on top of that already-truthful visual hierarchy. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Print-only rendering for the Forensic Evidence Summary export

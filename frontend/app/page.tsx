@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import CorrelationPanel from "./components/CorrelationPanel";
 import ContextualPanel from "./components/ContextualPanel";
-import EmailUploadCard from "./components/EmailUploadCard";
+import EmailUploadCard, { type UploadStage } from "./components/EmailUploadCard";
 import Header from "./components/Header";
 import InvestigationSummary from "./components/InvestigationSummary";
 import ObservedRelationships from "./components/ObservedRelationships";
@@ -25,6 +25,13 @@ export default function Home() {
   // still renders immediately without waiting on a round trip.
   const [history, setHistory] = useState<AnalyzedEmail[]>([]);
   const historySeeded = useRef(false);
+
+  // The upload/analysis lifecycle as truthfully reported by EmailUploadCard
+  // itself (see UploadStage there) — "correlated" below is the only value
+  // derived here, from the one additional real condition the upload card
+  // has no visibility into: whether 2+ emails exist in history.
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
+  const pipelineStage = uploadStage === "analyzed" && history.length >= 2 ? "correlated" : uploadStage;
 
   useEffect(() => {
     if (!session || historySeeded.current) return;
@@ -84,11 +91,14 @@ export default function Home() {
                 </p>
               </div>
 
-              <PipelineStages />
+              <PipelineStages stage={pipelineStage} />
 
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 xl:gap-8">
                 <div className="xl:col-span-8">
-                  <EmailUploadCard onAnalysisComplete={handleAnalysisComplete} />
+                  <EmailUploadCard
+                    onAnalysisComplete={handleAnalysisComplete}
+                    onStageChange={setUploadStage}
+                  />
                 </div>
                 <div className="print:hidden xl:col-span-4">
                   <ContextualPanel />

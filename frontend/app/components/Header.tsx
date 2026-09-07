@@ -96,7 +96,7 @@ function AccountMenu() {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls="account-menu"
-        className="flex items-center gap-2.5 rounded-control border border-transparent px-2 py-1.5 transition-colors hover:border-border-structural hover:bg-surface-container/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60"
+        className="transition-soft flex items-center gap-2.5 rounded-control border border-transparent px-2 py-1.5 transition-colors hover:border-border-structural hover:bg-surface-container/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60"
       >
         <span className="hidden items-center gap-2 sm:flex">
           <span className="h-1.5 w-1.5 rounded-full bg-verified/80" />
@@ -135,7 +135,7 @@ function AccountMenu() {
               role="menuitem"
               onClick={handleLogout}
               disabled={signingOut}
-              className="flex w-full items-center justify-center rounded-control px-3 py-2 text-[12px] font-medium text-text-secondary transition-colors hover:bg-critical/10 hover:text-critical focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 disabled:cursor-not-allowed disabled:opacity-60"
+              className="transition-soft flex w-full items-center justify-center rounded-control px-3 py-2 text-[12px] font-medium text-text-secondary transition-colors hover:bg-critical/10 hover:text-critical focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {signingOut ? "Signing out…" : "Log out"}
             </button>
@@ -170,7 +170,7 @@ export default function Header() {
             type="text"
             disabled
             placeholder="Search indicators — not yet available"
-            className="w-full bg-transparent text-[12px] text-text-dim placeholder:text-text-dim/70 focus:outline-none"
+            className="w-full cursor-not-allowed bg-transparent text-[12px] text-text-dim placeholder:text-text-dim/70 focus:outline-none"
           />
         </div>
       </div>

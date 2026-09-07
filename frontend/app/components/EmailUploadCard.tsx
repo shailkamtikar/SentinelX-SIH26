@@ -16,6 +16,17 @@ import AnalysisResult from "./AnalysisResult";
 type Status = "empty" | "selected" | "invalid";
 type AnalysisState = "idle" | "loading" | "success" | "error";
 
+/**
+ * The minimum truthful upload/analysis lifecycle the pipeline visualization
+ * needs, distinct from the more detailed local Status/AnalysisState above.
+ * "analyzing" corresponds exactly to the live POST /analyze-email request
+ * (analysisState === "loading") — nothing here implies a sub-stage timeline
+ * within that request. On a failed analysis this reverts to
+ * "ingest-staged" (the file is still selected and retry is available), not
+ * "idle", since nothing was actually removed.
+ */
+export type UploadStage = "idle" | "ingest-staged" | "analyzing" | "analyzed";
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -32,8 +43,10 @@ function isEmlFile(file: File): boolean {
 
 export default function EmailUploadCard({
   onAnalysisComplete,
+  onStageChange,
 }: {
   onAnalysisComplete?: (result: ParsedEmail, filename: string) => void;
+  onStageChange?: (stage: UploadStage) => void;
 }) {
   const { session } = useAuthSession();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,6 +70,7 @@ export default function EmailUploadCard({
       setAnalysisState("idle");
       setAnalysisError(null);
       setAnalysisResult(null);
+      onStageChange?.("idle");
       return;
     }
 
@@ -66,7 +80,8 @@ export default function EmailUploadCard({
     setAnalysisState("idle");
     setAnalysisError(null);
     setAnalysisResult(null);
-  }, []);
+    onStageChange?.("ingest-staged");
+  }, [onStageChange]);
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     acceptFile(event.target.files?.[0]);
@@ -96,6 +111,7 @@ export default function EmailUploadCard({
     setAnalysisState("idle");
     setAnalysisError(null);
     setAnalysisResult(null);
+    onStageChange?.("idle");
   };
 
   const handleBrowseClick = () => {
@@ -118,11 +134,13 @@ export default function EmailUploadCard({
     setAnalysisState("loading");
     setAnalysisError(null);
     setAnalysisResult(null);
+    onStageChange?.("analyzing");
 
     try {
       const result = await analyzeEmail(file, session.access_token);
       setAnalysisResult(result);
       setAnalysisState("success");
+      onStageChange?.("analyzed");
       onAnalysisComplete?.(result, file.name);
     } catch (error) {
       const message =
@@ -131,6 +149,9 @@ export default function EmailUploadCard({
           : "Unexpected error while contacting the analysis backend.";
       setAnalysisError(message);
       setAnalysisState("error");
+      // The file is still selected and retry is available — this was never
+      // "ingested and gone", so the pipeline reverts to staged, not idle.
+      onStageChange?.("ingest-staged");
     }
   };
 
@@ -164,7 +185,7 @@ export default function EmailUploadCard({
               handleBrowseClick();
             }
           }}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-card border border-dashed px-6 py-16 text-center transition-colors ${
+          className={`transition-soft flex cursor-pointer flex-col items-center justify-center gap-4 rounded-card border border-dashed px-6 py-16 text-center transition-colors ${
             isDragging
               ? "border-cyan/70 bg-cyan/5"
               : status === "invalid"
@@ -216,7 +237,7 @@ export default function EmailUploadCard({
               <button
                 type="button"
                 onClick={handleRemove}
-                className="flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] text-text-dim transition-colors hover:bg-surface-high hover:text-critical"
+                className="transition-soft flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] text-text-dim transition-colors hover:bg-surface-high hover:text-critical focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60"
                 aria-label="Remove selected file"
               >
                 <CloseIcon className="h-3 w-3" />
@@ -242,7 +263,7 @@ export default function EmailUploadCard({
           type="button"
           disabled={status !== "selected" || analysisState === "loading"}
           onClick={handleAnalyzeClick}
-          className="mt-6 flex w-full items-center justify-center rounded-control bg-cyan px-4 py-3.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-canvas-deep transition-colors hover:bg-cyan-light disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-text-dim"
+          className="transition-soft mt-6 flex w-full items-center justify-center rounded-control bg-cyan px-4 py-3.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-canvas-deep transition-colors hover:bg-cyan-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-text-dim"
         >
           {analysisState === "loading" ? "Analyzing…" : "Analyze Email"}
         </button>
