@@ -27,6 +27,10 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env", overrid
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
+# Local Next.js dev origin only, unless CORS_ALLOWED_ORIGINS overrides this —
+# preserves today's exact behavior when the env var is unset.
+DEFAULT_CORS_ORIGINS: tuple[str, ...] = ("http://localhost:3000",)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -39,6 +43,9 @@ class Settings:
     # remains authoritative either way.
     gemini_api_key: str | None
     gemini_model: str
+    # Exact-match browser origins allowed by CORS (app/main.py). Never a
+    # wildcard — see CORS_ALLOWED_ORIGINS below.
+    cors_allowed_origins: tuple[str, ...]
 
     @property
     def supabase_configured(self) -> bool:
@@ -47,6 +54,20 @@ class Settings:
     @property
     def gemini_configured(self) -> bool:
         return bool(self.gemini_api_key)
+
+
+def _parse_cors_origins(raw: str | None) -> tuple[str, ...]:
+    """Comma-separated origins from CORS_ALLOWED_ORIGINS, or the local-dev default.
+
+    Whitespace around each entry is trimmed and empty entries (e.g. from a
+    trailing comma) are dropped. An unset or empty env var falls back to
+    DEFAULT_CORS_ORIGINS exactly — local dev behavior is unchanged unless
+    this is explicitly configured.
+    """
+    if not raw:
+        return DEFAULT_CORS_ORIGINS
+    origins = tuple(origin.strip() for origin in raw.split(",") if origin.strip())
+    return origins or DEFAULT_CORS_ORIGINS
 
 
 def get_settings() -> Settings:
@@ -60,4 +81,5 @@ def get_settings() -> Settings:
         supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY") or None,
         gemini_api_key=os.environ.get("GEMINI_API_KEY") or None,
         gemini_model=os.environ.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL,
+        cors_allowed_origins=_parse_cors_origins(os.environ.get("CORS_ALLOWED_ORIGINS")),
     )
