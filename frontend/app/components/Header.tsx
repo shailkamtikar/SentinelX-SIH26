@@ -1,6 +1,21 @@
+"use client";
+
 import type { SVGProps } from "react";
 
+import { useAuthSession } from "../lib/AuthSessionProvider";
+
+/** First one or two letters of the email's local part, uppercased — never
+ * a fabricated name, and never invented when signed out. */
+function initialsFromEmail(email: string): string {
+  const localPart = email.split("@")[0] ?? "";
+  const letters = localPart.replace(/[^a-zA-Z]/g, "");
+  return (letters.slice(0, 2) || email.slice(0, 2)).toUpperCase();
+}
+
 export default function Header() {
+  const { session } = useAuthSession();
+  const avatarLabel = session?.user?.email ? initialsFromEmail(session.user.email) : "—";
+
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-5 border-b border-border-structural/60 bg-canvas/85 px-5 backdrop-blur-md lg:px-10">
       {/* Investigation context */}
@@ -35,7 +50,7 @@ export default function Header() {
           <span className="text-[12px] text-text-dim">Local session</span>
         </div>
         <span className="flex h-8 w-8 items-center justify-center rounded-control bg-surface-container text-[11px] font-medium text-text-secondary">
-          LA
+          {avatarLabel}
         </span>
       </div>
     </header>

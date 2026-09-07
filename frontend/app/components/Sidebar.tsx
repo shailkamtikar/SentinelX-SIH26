@@ -1,4 +1,9 @@
-import type { SVGProps } from "react";
+"use client";
+
+import Link from "next/link";
+import { useState, type SVGProps } from "react";
+
+import { useAuthSession } from "../lib/AuthSessionProvider";
 
 type NavStage = {
   code: string;
@@ -35,6 +40,17 @@ function statusDotClass(status: NavStage["status"]) {
 }
 
 export default function Sidebar() {
+  const { session, loading, signingOut, signOut } = useAuthSession();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    setLogoutError(null);
+    const { error } = await signOut();
+    if (error) {
+      setLogoutError(error);
+    }
+  };
+
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-border-structural/60 lg:bg-surface-lowest print:hidden">
       {/* Branding */}
@@ -128,15 +144,43 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Analyst profile */}
-      <div className="flex shrink-0 items-center gap-2.5 border-t border-border-structural/60 px-6 py-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-control bg-surface-container text-[11px] font-medium text-text-secondary">
-          LA
-        </span>
-        <div className="leading-tight">
-          <p className="text-[12px] font-medium text-text-secondary">Local Analyst</p>
-          <p className="text-[10px] uppercase tracking-wider text-text-dim">Local session</p>
-        </div>
+      {/* Authenticated user / session state — reflects the real Supabase
+          session truthfully; no identity is shown or invented when signed
+          out. */}
+      <div className="flex shrink-0 flex-col gap-2 border-t border-border-structural/60 px-6 py-4">
+        {loading ? (
+          <p className="text-[12px] text-text-dim">Checking session…</p>
+        ) : session?.user?.email ? (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-[12px] font-medium text-text-secondary">
+                  {session.user.email}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider text-text-dim">Signed in</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={signingOut}
+                className="shrink-0 rounded-control border border-border-structural px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-critical/40 hover:text-critical disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {signingOut ? "Signing out…" : "Log out"}
+              </button>
+            </div>
+            {logoutError && <p className="text-[11px] text-critical">{logoutError}</p>}
+          </>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[12px] text-text-dim">Not signed in</p>
+            <Link
+              href="/login"
+              className="shrink-0 text-[11px] font-medium text-cyan hover:text-cyan-light"
+            >
+              Log in
+            </Link>
+          </div>
+        )}
       </div>
     </aside>
   );

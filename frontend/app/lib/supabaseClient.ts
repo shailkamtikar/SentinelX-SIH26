@@ -19,6 +19,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * caller actually tries to sign in or sign up in the browser.
  */
 
+/** Pure, synchronous env check — no client construction, no side effects. */
+export function isSupabaseConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
 let cachedClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
