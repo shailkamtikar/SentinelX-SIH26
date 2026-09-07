@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
+import AuthInit from "./lib/AuthInit";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -25,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${jetBrainsMono.variable} h-full`}
     >
       <body className="flex h-full min-h-full flex-col bg-canvas font-sans text-text-primary antialiased">
+        <AuthInit />
         {children}
       </body>
     </html>
