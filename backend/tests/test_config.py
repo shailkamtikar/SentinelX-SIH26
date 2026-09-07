@@ -73,3 +73,45 @@ def test_gemini_configured_reflects_only_the_api_key(monkeypatch):
 
     monkeypatch.setenv("GEMINI_API_KEY", "present")
     assert get_settings().gemini_configured is True
+
+
+# --- CORS allowed origins configuration -----------------------------------
+
+
+def test_cors_allowed_origins_defaults_to_localhost_only(monkeypatch):
+    from app.config import DEFAULT_CORS_ORIGINS, get_settings
+
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+
+    assert get_settings().cors_allowed_origins == DEFAULT_CORS_ORIGINS
+    assert get_settings().cors_allowed_origins == ("http://localhost:3000",)
+
+
+def test_cors_allowed_origins_env_var_overrides_the_default(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,https://sentinel-x-sih-26.vercel.app",
+    )
+
+    assert get_settings().cors_allowed_origins == (
+        "http://localhost:3000",
+        "https://sentinel-x-sih-26.vercel.app",
+    )
+
+
+def test_cors_allowed_origins_trims_whitespace_and_drops_empty_entries(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", " http://localhost:3000 , ,https://example.test ")
+
+    assert get_settings().cors_allowed_origins == ("http://localhost:3000", "https://example.test")
+
+
+def test_cors_allowed_origins_falls_back_to_default_when_env_var_is_blank(monkeypatch):
+    from app.config import DEFAULT_CORS_ORIGINS, get_settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "   ,  ,")
+
+    assert get_settings().cors_allowed_origins == DEFAULT_CORS_ORIGINS

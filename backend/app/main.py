@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from app.routes import analyze, health
 
 app = FastAPI(
@@ -9,10 +10,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Development CORS: only the known local Next.js origin, no wildcard.
+# Exact-match allowed origins only, never a wildcard — see
+# Settings.cors_allowed_origins / CORS_ALLOWED_ORIGINS in app/config.py.
+# Defaults to the local Next.js dev origin when that env var is unset, so
+# local development behavior is unchanged from before this was configurable.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=list(get_settings().cors_allowed_origins),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
