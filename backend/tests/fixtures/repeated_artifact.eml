@@ -1,0 +1,30 @@
+From: Invoice Follow-up <billing-followup@corp-example.test>
+To: accounts-payable@corp-example.test
+Reply-To: response@malicious-shared.example.test
+Return-Path: <billing-followup@corp-example.test>
+Date: Sat, 14 Jun 2025 12:40:00 +0000
+Message-ID: <repeated-artifact-0001@corp-example.test>
+Subject: Invoice Follow-up - Please See Attached
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=corp-example.test;
+ dkim=none; dmarc=none
+Content-Type: multipart/mixed; boundary="===============7000000000000000002=="
+MIME-Version: 1.0
+
+--===============7000000000000000002==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Following up on the earlier invoice - please see the attached document
+and reply to confirm you can process it.
+
+--===============7000000000000000002==
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice_followup.bin"
+MIME-Version: 1.0
+
+U1VTUElDSU9VUy1ERU1PLVBBWUxPQUQtRE8tTk9ULUVYRUNVVEUtMDAwMQoo
+c3ludGhldGljIGNvbnRlbnQgZm9yIFNlbnRpbmVsWCBmaXh0dXJlIGNvcnJl
+bGF0aW9uIHRlc3RpbmcpCg==
+
+--===============7000000000000000002==--

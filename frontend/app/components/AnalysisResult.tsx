@@ -1,0 +1,824 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+
+import type {
+  AIExplanation,
+  AIExplanationStatus,
+  AttachmentHashIndicator,
+  DomainIndicator,
+  EvidenceStatus,
+  IPIndicator,
+  ParsedEmail,
+  ThreatAssessment,
+  URLIndicator,
+} from "../lib/analyzeEmail";
+
+// Full literal class strings per key (not fragment-interpolated) so
+// Tailwind's static scanner can find them — reuses only existing tokens.
+const RISK_LEVEL_STYLES: Record<
+  ThreatAssessment["risk_level"],
+  { border: string; bg: string; text: string; dot: string }
+> = {
+  LOW: {
+    border: "border-verified/30",
+    bg: "bg-verified/5",
+    text: "text-verified",
+    dot: "bg-verified",
+  },
+  MEDIUM: {
+    border: "border-warning/30",
+    bg: "bg-warning/5",
+    text: "text-warning",
+    dot: "bg-warning",
+  },
+  HIGH: {
+    border: "border-critical/30",
+    bg: "bg-critical/5",
+    text: "text-critical",
+    dot: "bg-critical",
+  },
+  UNKNOWN: {
+    border: "border-neutral/30",
+    bg: "bg-neutral/5",
+    text: "text-neutral",
+    dot: "bg-neutral",
+  },
+};
+
+/** Standard evidence card. One consistent container treatment everywhere. */
+function Section({
+  title,
+  meta,
+  children,
+  className = "",
+}: {
+  title: string;
+  meta?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-card border border-border-structural/50 bg-surface-container p-5 sm:p-6 ${className}`}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-dim">
+          {title}
+        </h3>
+        {meta}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function CountMeta({ count }: { count: number }) {
+  return <span className="text-[11px] text-text-dim">{count}</span>;
+}
+
+function Field({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-[10px] uppercase tracking-[0.16em] text-text-dim">{label}</dt>
+      <dd className="break-words font-mono text-[12px] leading-5 text-text-secondary">
+        {value ?? "—"}
+      </dd>
+    </div>
+  );
+}
+
+/** Recessed data well — replaces the previous per-row bordered boxes. */
+function EvidenceRow({ text }: { text: string }) {
+  return (
+    <li className="break-all rounded-control bg-surface-lowest/70 px-3.5 py-2.5 font-mono text-[12px] leading-5 text-text-secondary">
+      {text}
+    </li>
+  );
+}
+
+function AuthTile({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="rounded-control bg-surface-lowest/70 px-4 py-3">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-text-dim">{label}</p>
+      <p
+        className={`mt-1.5 font-mono text-[13px] leading-5 ${
+          value ? "text-text-secondary" : "text-text-dim"
+        }`}
+      >
+        {value ?? "Not present in analyzed email."}
+      </p>
+    </div>
+  );
+}
+
+function SourceTag({ sources }: { sources: string[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <span className="shrink-0 text-[10px] uppercase tracking-wider text-text-dim">
+      {sources.join(", ")}
+    </span>
+  );
+}
+
+// Structural facts only, never a maliciousness verdict — same neutral
+// visual language as the IP classification badge below.
+function FlagBadge({ label, title }: { label: string; title?: string }) {
+  return (
+    <span
+      title={title}
+      className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral"
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * Plain-language explanation of an offline IP classification (see
+ * ioc_enrichment.py) — structural provenance only, never a live
+ * reputation, GeoIP, or WHOIS claim, since none of those are implemented.
+ */
+function explainIpClassification(classification: string): string {
+  if (classification.includes("documentation range")) {
+    return "Synthetic documentation/test range. This classification is not evidence of a malicious public IP.";
+  }
+  if (classification.includes("RFC 1918") || classification.toLowerCase().includes("private")) {
+    return "Private address space; not directly routable on the public Internet.";
+  }
+  if (classification.includes("Loopback")) {
+    return "Loopback address; refers to the local machine, not a remote host.";
+  }
+  if (classification.includes("Link-local")) {
+    return "Link-local address; valid only on the local network segment.";
+  }
+  if (classification.includes("Shared address space") || classification.includes("CGNAT")) {
+    return "Shared/carrier-grade NAT address space, commonly used by ISPs — not inherently suspicious.";
+  }
+  if (classification.includes("Reserved")) {
+    return "Reserved address range per the IANA special-purpose registry; not expected in normal public traffic.";
+  }
+  if (classification.includes("Multicast")) {
+    return "Multicast address; identifies a group of hosts, not a single sender.";
+  }
+  if (classification.includes("Public")) {
+    return "Publicly routable address. No live reputation, GeoIP, or WHOIS lookup was performed — this is a structural classification only.";
+  }
+  return "Offline structural classification only — no live reputation, GeoIP, or WHOIS lookup was performed.";
+}
+
+function IndicatorRow({ children }: { children: ReactNode }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-control bg-surface-lowest/70 px-3.5 py-2.5">
+      {children}
+    </li>
+  );
+}
+
+function IPIndicatorRow({
+  entry,
+  classification,
+}: {
+  entry: IPIndicator;
+  classification?: string;
+}) {
+  return (
+    <IndicatorRow>
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[12px] text-text-secondary">{entry.value}</span>
+        {entry.private && (
+          <span
+            title={explainIpClassification(classification ?? "Private")}
+            className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral"
+          >
+            {/* Falls back to the generic "Private" label when offline
+                enrichment is unavailable — the row must still degrade
+                gracefully. */}
+            {classification ?? "Private"}
+          </span>
+        )}
+      </span>
+      <SourceTag sources={entry.sources} />
+    </IndicatorRow>
+  );
+}
+
+function DomainIndicatorRow({ entry }: { entry: DomainIndicator }) {
+  return (
+    <IndicatorRow>
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="break-all font-mono text-[12px] text-text-secondary">{entry.value}</span>
+        {entry.punycode_domain && <FlagBadge label="Punycode" />}
+      </span>
+      <SourceTag sources={entry.sources} />
+    </IndicatorRow>
+  );
+}
+
+function URLIndicatorRow({
+  entry,
+  isKnownShortener,
+}: {
+  entry: URLIndicator;
+  isKnownShortener?: boolean;
+}) {
+  return (
+    <IndicatorRow>
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="break-all font-mono text-[12px] text-sky">{entry.value}</span>
+        {entry.ip_literal_url && <FlagBadge label="IP literal" />}
+        {entry.credential_in_url && <FlagBadge label="Credentials in URL" />}
+        {entry.punycode_domain && <FlagBadge label="Punycode" />}
+        {isKnownShortener && (
+          <FlagBadge
+            label="Known URL shortener"
+            title="URL uses a known shortening service, which can obscure the final destination and warrants inspection."
+          />
+        )}
+      </span>
+      <SourceTag sources={entry.sources} />
+    </IndicatorRow>
+  );
+}
+
+function AttachmentHashRow({ entry }: { entry: AttachmentHashIndicator }) {
+  return (
+    <IndicatorRow>
+      <span className="font-mono text-[12px] text-text-secondary">
+        {entry.filename ?? "(unnamed)"}
+      </span>
+      <span className="break-all font-mono text-[11px] text-text-dim">
+        {entry.sha256 ?? "Hash unavailable"}
+      </span>
+    </IndicatorRow>
+  );
+}
+
+function IOCGroup<T>({
+  label,
+  entries,
+  emptyText,
+  renderRow,
+}: {
+  label: string;
+  entries: T[];
+  emptyText: string;
+  renderRow: (entry: T, index: number) => ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <h4 className="text-[12px] font-medium text-text-secondary">{label}</h4>
+        <span className="text-[11px] text-text-dim">{entries.length}</span>
+      </div>
+      {entries.length === 0 ? (
+        <p className="mt-2 text-[12px] text-text-dim">{emptyText}</p>
+      ) : (
+        <ul className="mt-2.5 flex flex-col gap-1.5">
+          {entries.map((entry, index) => renderRow(entry, index))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+type ThreatFinding = {
+  finding: string;
+  evidence: string[];
+  whyItMatters: string;
+};
+
+const ROUTING_MISMATCH_LABELS: Record<string, string> = {
+  return_path_domain_mismatch: "Return-Path domain differs from the From domain",
+  reply_to_domain_mismatch: "Reply-To domain differs from the From domain",
+};
+
+/**
+ * Groups the deterministic assessment's flat reason strings (see
+ * app.services.threat_assessment.py) into the three evidence categories
+ * that engine itself evaluates, each with a plain-language "why it
+ * matters" — cautious, non-alarmist wording only ("can indicate",
+ * "warrants investigation"), never an ML/reputation claim. Every reason
+ * string still comes directly from the backend; nothing here invents or
+ * reinterprets evidence, it only explains categories the engine already
+ * computes.
+ */
+function categorizeThreatReasons(reasons: string[]): ThreatFinding[] {
+  const authEvidence = reasons.filter(
+    (reason) => reason.startsWith("SPF result:") || reason.startsWith("DMARC result:"),
+  );
+  const routingEvidence = reasons.filter((reason) => reason in ROUTING_MISMATCH_LABELS);
+  const urlEvidence = reasons.filter(
+    (reason) =>
+      reason.startsWith("URL hostname is a raw IP address:") ||
+      reason.startsWith("Credentials embedded in URL:") ||
+      reason.startsWith("URL hostname uses punycode") ||
+      reason.startsWith("Domain uses punycode"),
+  );
+  const categorized = new Set([...authEvidence, ...routingEvidence, ...urlEvidence]);
+  const otherEvidence = reasons.filter((reason) => !categorized.has(reason));
+
+  const findings: ThreatFinding[] = [];
+
+  if (authEvidence.length > 0) {
+    findings.push({
+      finding: "Authentication failure",
+      evidence: authEvidence,
+      whyItMatters:
+        "The claimed sender identity failed authentication checks and should be independently validated before this message is trusted.",
+    });
+  }
+  if (routingEvidence.length > 0) {
+    findings.push({
+      finding: "Routing identity mismatch",
+      evidence: routingEvidence.map((reason) => ROUTING_MISMATCH_LABELS[reason] ?? reason),
+      whyItMatters:
+        "Reply or bounce traffic is routed through a different domain than the claimed sender, which can indicate impersonation or routing manipulation.",
+    });
+  }
+  if (urlEvidence.length > 0) {
+    findings.push({
+      finding: "Structural URL risk",
+      evidence: urlEvidence,
+      whyItMatters:
+        "The URL structure contains a pattern commonly associated with deceptive or credential-collection links and warrants investigation before it is visited.",
+    });
+  }
+  if (otherEvidence.length > 0) {
+    findings.push({
+      finding: "Other deterministic finding",
+      evidence: otherEvidence,
+      whyItMatters:
+        "Flagged by the deterministic assessment; review alongside the evidence above before drawing a conclusion.",
+    });
+  }
+
+  return findings;
+}
+
+function ThreatFindingCard({ finding }: { finding: ThreatFinding }) {
+  return (
+    <div className="rounded-control bg-surface-lowest/70 px-4 py-3.5">
+      <p className="text-[12px] font-semibold text-text-primary">{finding.finding}</p>
+
+      <p className="mt-2.5 text-[10px] uppercase tracking-[0.16em] text-text-dim">Evidence</p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {finding.evidence.map((item, index) => (
+          <li key={index} className="break-all font-mono text-[12px] leading-5 text-text-secondary">
+            {item}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-2.5 text-[10px] uppercase tracking-[0.16em] text-text-dim">Why it matters</p>
+      <p className="mt-1 text-[12px] leading-5 text-text-dim">{finding.whyItMatters}</p>
+    </div>
+  );
+}
+
+function ThreatAssessmentCard({ assessment }: { assessment: ThreatAssessment }) {
+  const styles = RISK_LEVEL_STYLES[assessment.risk_level];
+  const findings = categorizeThreatReasons(assessment.reasons);
+
+  return (
+    <section className={`rounded-card border ${styles.border} ${styles.bg} p-5 sm:p-6`}>
+      <h3 className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-dim">
+        Threat assessment
+      </h3>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} />
+        <span className={`text-3xl font-semibold tracking-tight ${styles.text}`}>
+          {assessment.risk_level}
+        </span>
+      </div>
+
+      {findings.length === 0 ? (
+        <p className="mt-4 text-[13px] leading-6 text-text-dim">
+          No risk indicators found in extracted evidence.
+        </p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-3">
+          {findings.map((finding) => (
+            <ThreatFindingCard key={finding.finding} finding={finding} />
+          ))}
+        </div>
+      )}
+
+      <p className="mt-5 text-[11px] leading-5 text-text-dim">
+        Deterministic, evidence-based assessment — not machine learning or reputation
+        intelligence.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * Optional AI stage, kept visually subordinate to the deterministic
+ * assessment above it. When unavailable this states so plainly — no
+ * placeholder or invented explanation is ever rendered.
+ */
+function AIExplanationCard({
+  explanation,
+  status,
+}: {
+  explanation: AIExplanation | null | undefined;
+  status: AIExplanationStatus | undefined;
+}) {
+  return (
+    <Section title="AI-assisted explanation">
+      {explanation ? (
+        <>
+          <p className="text-[13px] leading-6 text-text-secondary">{explanation.summary}</p>
+
+          {explanation.evidence_points.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Evidence</h4>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {explanation.evidence_points.map((point, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2.5 text-[13px] leading-6 text-text-secondary"
+                  >
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-text-dim" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {explanation.uncertainty && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Uncertainty</h4>
+              <p className="mt-2 text-[13px] leading-6 text-text-dim">{explanation.uncertainty}</p>
+            </div>
+          )}
+
+          {explanation.recommended_actions.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-[12px] font-medium text-text-secondary">Recommended actions</h4>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {explanation.recommended_actions.map((action, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2.5 text-[13px] leading-6 text-text-secondary"
+                  >
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-text-dim" />
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="mt-5 text-[11px] leading-5 text-text-dim">
+            AI-assisted explanation generated from extracted forensic evidence. It does not
+            replace analyst judgment or independent threat intelligence.
+          </p>
+        </>
+      ) : status === "unavailable" ? (
+        <p className="text-[13px] leading-6 text-text-dim">
+          AI explanation unavailable — the explanation service could not be reached or returned
+          an unusable response. The deterministic assessment above remains authoritative.
+        </p>
+      ) : (
+        <p className="text-[13px] leading-6 text-text-dim">
+          AI explanation unavailable — configure GEMINI_API_KEY to enable this stage. The
+          deterministic assessment above remains authoritative.
+        </p>
+      )}
+    </Section>
+  );
+}
+
+/** Truthful evidence-handling status. Never shows a public storage URL. */
+function EvidenceStatusFields({ evidence }: { evidence: EvidenceStatus | null | undefined }) {
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-4 border-t border-border-structural/50 pt-5 print:mt-0 print:border-t-0 print:pt-0 sm:grid-cols-2">
+      <div className="flex flex-col gap-1">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-dim">
+          Original EML SHA-256
+        </p>
+        <p className="break-all font-mono text-[11px] leading-5 text-text-secondary">
+          {evidence?.raw_eml_sha256 ?? "Not available"}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-dim">Raw EML storage</p>
+        <p className="font-mono text-[12px] leading-5 text-text-secondary">
+          {evidence?.raw_eml_stored ? "Stored (private)" : "Unavailable"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function AnalysisResult({ result }: { result: ParsedEmail }) {
+  // Captured once when this evidence view is rendered — a real,
+  // client-generated timestamp, not a server or cryptographic one.
+  const [generatedAt] = useState(() => new Date());
+
+  // The backend contract always populates these nested objects, but this
+  // view must never crash — and hide the AI explanation card with it — if
+  // a response is ever missing one. Normalizing once here (rather than
+  // scattering optional chains through every render path below) keeps the
+  // rest of this component reading and behaving exactly as before.
+  const iocs = {
+    ipv4: result.iocs?.ipv4 ?? [],
+    ipv6: result.iocs?.ipv6 ?? [],
+    domains: result.iocs?.domains ?? [],
+    urls: result.iocs?.urls ?? [],
+    attachment_hashes: result.iocs?.attachment_hashes ?? [],
+  };
+  const forensics = {
+    spf_result: result.forensics?.spf_result ?? null,
+    dkim_result: result.forensics?.dkim_result ?? null,
+    dmarc_result: result.forensics?.dmarc_result ?? null,
+    authentication_results_raw: result.forensics?.authentication_results_raw ?? null,
+    authentication_results_raw_all: result.forensics?.authentication_results_raw_all ?? [],
+    received_chain: result.forensics?.received_chain ?? [],
+    routing_flags: result.forensics?.routing_flags ?? [],
+  };
+  const threatAssessment: ThreatAssessment = result.threat_assessment ?? {
+    risk_level: "UNKNOWN",
+    reasons: [],
+  };
+  const attachments = result.attachments ?? [];
+  const urls = result.urls ?? [];
+
+  // Offline enrichment is joined back onto the existing IOC rows by value
+  // rather than reshaping iocs itself — see ioc_enrichment.py.
+  const ipClassificationByValue = new Map(
+    (result.enrichment?.ip ?? []).map((entry) => [entry.value, entry.classification]),
+  );
+  const knownShortenerUrls = new Set(
+    (result.enrichment?.url ?? [])
+      .filter((entry) => entry.known_url_shortener)
+      .map((entry) => entry.value),
+  );
+
+  return (
+    <div className="print-report mt-7 flex flex-col gap-4 print:mt-0 print:gap-5">
+      {/* Print-only letterhead — hidden on screen, shown only in the
+          exported/printed Evidence Summary. */}
+      <div className="hidden print:block">
+        <p className="text-lg font-bold text-text-primary">SentinelX</p>
+        <p className="text-sm font-semibold text-text-secondary">Forensic Evidence Summary</p>
+        <p className="mt-1.5 font-mono text-[10px] text-text-dim">
+          Generated locally in the browser: {generatedAt.toLocaleString()}
+        </p>
+        <p className="font-mono text-[9px] text-text-dim">
+          Deterministic, evidence-based export. Not a cryptographically verified, tamper-evident,
+          or chain-of-custody record.
+        </p>
+      </div>
+
+      {/* Result status */}
+      <div className="print:hidden flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2 w-2 rounded-full bg-verified" />
+          <span className="text-[13px] font-medium text-text-primary">Analysis complete</span>
+        </div>
+        <span className="text-[10px] uppercase tracking-[0.18em] text-text-dim">
+          Parsed evidence
+        </span>
+      </div>
+
+      {/* 1. Investigation overview */}
+      <Section title="Investigation overview">
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+          <Field label="Sender" value={result.sender} />
+          <Field label="Recipient" value={result.recipient} />
+          <Field label="Subject" value={result.subject} />
+          <Field label="Reply-To" value={result.reply_to} />
+          <Field label="Date" value={result.date} />
+          <Field label="Message-ID" value={result.message_id} />
+          <Field label="Return-Path" value={result.return_path} />
+        </dl>
+      </Section>
+
+      {/* 2. Threat assessment — the focal point */}
+      <ThreatAssessmentCard assessment={threatAssessment} />
+
+      {/* 2b. Optional AI explanation of the evidence above (EXPLAIN stage) */}
+      <AIExplanationCard
+        explanation={result.ai_explanation}
+        status={result.ai_explanation_status}
+      />
+
+      {/* 3. Authentication evidence */}
+      <Section title="Email authentication">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <AuthTile label="SPF" value={forensics.spf_result} />
+          <AuthTile label="DKIM" value={forensics.dkim_result} />
+          <AuthTile label="DMARC" value={forensics.dmarc_result} />
+        </div>
+
+        <p className="mt-5 text-[10px] uppercase tracking-[0.16em] text-text-dim">
+          Raw Authentication-Results header
+        </p>
+        <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface-lowest/70 px-4 py-3 font-mono text-[12px] leading-5 text-text-secondary">
+          {forensics.authentication_results_raw ?? "Not present in analyzed email."}
+        </pre>
+
+        {forensics.authentication_results_raw_all.length > 1 && (
+          <details className="mt-3 rounded-control bg-surface-lowest/70 px-4 py-3">
+            <summary className="cursor-pointer text-[12px] text-text-dim">
+              {forensics.authentication_results_raw_all.length} Authentication-Results
+              headers found — view all
+            </summary>
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {forensics.authentication_results_raw_all.map((raw, index) => (
+                <EvidenceRow key={index} text={raw} />
+              ))}
+            </ul>
+          </details>
+        )}
+      </Section>
+
+      {/* 4. Routing evidence */}
+      <Section title="Routing & delivery path">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <h4 className="text-[12px] font-medium text-text-secondary">Received chain</h4>
+            <CountMeta count={forensics.received_chain.length} />
+          </div>
+          {forensics.received_chain.length === 0 ? (
+            <p className="mt-2 text-[12px] text-text-dim">No Received headers found.</p>
+          ) : (
+            <ul className="mt-2.5 flex flex-col gap-1.5">
+              {forensics.received_chain.map((hop, index) => (
+                <EvidenceRow key={index} text={hop} />
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-baseline gap-2">
+            <h4 className="text-[12px] font-medium text-text-secondary">Routing flags</h4>
+            <CountMeta count={forensics.routing_flags.length} />
+          </div>
+          {forensics.routing_flags.length === 0 ? (
+            <p className="mt-2 text-[12px] text-text-dim">No routing inconsistencies detected.</p>
+          ) : (
+            <ul className="mt-2.5 flex flex-col gap-1.5">
+              {forensics.routing_flags.map((flag) => (
+                <li
+                  key={flag}
+                  className="flex items-center gap-2.5 rounded-control border border-warning/30 bg-warning/5 px-3.5 py-2.5 font-mono text-[12px] text-warning"
+                >
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-warning" />
+                  {flag}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Section>
+
+      {/* 5. Indicators of compromise */}
+      <Section title="Indicators of compromise">
+        <div className="flex flex-col gap-6">
+          <IOCGroup
+            label="IPv4 addresses"
+            entries={iocs.ipv4}
+            emptyText="No IPv4 indicators found."
+            renderRow={(entry) => (
+              <IPIndicatorRow
+                key={entry.value}
+                entry={entry}
+                classification={ipClassificationByValue.get(entry.value)}
+              />
+            )}
+          />
+
+          <IOCGroup
+            label="IPv6 addresses"
+            entries={iocs.ipv6}
+            emptyText="No IPv6 indicators found."
+            renderRow={(entry) => (
+              <IPIndicatorRow
+                key={entry.value}
+                entry={entry}
+                classification={ipClassificationByValue.get(entry.value)}
+              />
+            )}
+          />
+
+          <IOCGroup
+            label="Domains"
+            entries={iocs.domains}
+            emptyText="No domain indicators found."
+            renderRow={(entry) => <DomainIndicatorRow key={entry.value} entry={entry} />}
+          />
+
+          <IOCGroup
+            label="URLs"
+            entries={iocs.urls}
+            emptyText="No URL indicators found."
+            renderRow={(entry) => (
+              <URLIndicatorRow
+                key={entry.value}
+                entry={entry}
+                isKnownShortener={knownShortenerUrls.has(entry.value)}
+              />
+            )}
+          />
+
+          <IOCGroup
+            label="Attachment hashes (SHA-256)"
+            entries={iocs.attachment_hashes}
+            emptyText="No attachment hashes found."
+            renderRow={(entry, index) => (
+              <AttachmentHashRow key={`${entry.filename ?? "unnamed"}-${index}`} entry={entry} />
+            )}
+          />
+        </div>
+      </Section>
+
+      {/* 6. Raw message evidence */}
+      <Section title="Message content">
+        <div>
+          <h4 className="text-[12px] font-medium text-text-secondary">Body</h4>
+          <pre className="mt-2.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface-lowest/70 px-4 py-3 font-mono text-[12px] leading-5 text-text-secondary">
+            {result.body ?? "— No body content found —"}
+          </pre>
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-baseline gap-2">
+            <h4 className="text-[12px] font-medium text-text-secondary">Attachments</h4>
+            <CountMeta count={attachments.length} />
+          </div>
+          {attachments.length === 0 ? (
+            <p className="mt-2 text-[12px] text-text-dim">No attachments found.</p>
+          ) : (
+            <ul className="mt-2.5 flex flex-col gap-1.5">
+              {attachments.map((attachment, index) => (
+                <li
+                  key={`${attachment.filename ?? "unnamed"}-${index}`}
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-control bg-surface-lowest/70 px-3.5 py-2.5"
+                >
+                  <span className="font-mono text-[12px] text-text-secondary">
+                    {attachment.filename ?? "(unnamed)"}
+                  </span>
+                  <span className="font-mono text-[11px] text-text-dim">
+                    {attachment.content_type} · {attachment.size} B
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-baseline gap-2">
+            <h4 className="text-[12px] font-medium text-text-secondary">Extracted URLs</h4>
+            <CountMeta count={urls.length} />
+          </div>
+          {urls.length === 0 ? (
+            <p className="mt-2 text-[12px] text-text-dim">No URLs found.</p>
+          ) : (
+            <ul className="mt-2.5 flex flex-col gap-1.5">
+              {urls.map((url) => (
+                <li
+                  key={url}
+                  className="break-all rounded-control bg-surface-lowest/70 px-3.5 py-2.5 font-mono text-[12px] leading-5 text-sky"
+                >
+                  {url}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Section>
+
+      {/* 7. Evidence / report action */}
+      <section className="rounded-card border border-border-structural/50 bg-surface-container p-5 sm:p-6">
+        {/* The export control itself is screen-only; the evidence status
+            below it belongs in the printed summary. */}
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+          <div className="min-w-0">
+            <h3 className="text-[13px] font-medium text-text-primary">Evidence Summary</h3>
+            <p className="mt-1.5 max-w-lg text-[12px] leading-5 text-text-dim">
+              Produces a printable forensic summary of this analysis, generated locally in the
+              browser. Not a cryptographically verified, tamper-evident, or chain-of-custody
+              record.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="shrink-0 rounded-control border border-cyan/40 bg-cyan/10 px-5 py-2.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-cyan transition-colors hover:bg-cyan/20"
+          >
+            Export Evidence Summary
+          </button>
+        </div>
+
+        <EvidenceStatusFields evidence={result.evidence} />
+      </section>
+    </div>
+  );
+}

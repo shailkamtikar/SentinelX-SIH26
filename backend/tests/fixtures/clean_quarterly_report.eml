@@ -1,0 +1,22 @@
+From: Priya Finance <priya.finance@corp-example.test>
+To: bob@example.org
+Reply-To: priya.finance@corp-example.test
+Return-Path: <priya.finance@corp-example.test>
+Date: Mon, 02 Jun 2025 09:15:00 +0000
+Message-ID: <clean-quarterly-report-0001@corp-example.test>
+Subject: Q2 Quarterly Report - For Review
+Authentication-Results: mx.corp-example.test; spf=pass smtp.mailfrom=corp-example.test;
+ dkim=pass header.d=corp-example.test; dmarc=pass header.from=corp-example.test
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Hi Bob,
+
+Attached is the Q2 quarterly report for your review ahead of Friday's
+meeting. Let me know if you have any questions.
+
+You can also view the summary online at https://corp-example.test/reports/q2.
+
+Thanks,
+Priya

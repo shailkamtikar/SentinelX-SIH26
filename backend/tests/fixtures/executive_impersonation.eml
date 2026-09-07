@@ -1,0 +1,20 @@
+From: "Michael Chen, CEO" <m.chen@corp-example-secure.test>
+To: bob@example.org
+Reply-To: m.chen.office@corp-example-secure.test
+Return-Path: <bounce@relay-example.test>
+Date: Wed, 11 Jun 2025 06:20:00 +0000
+Message-ID: <executive-impersonation-0001@corp-example-secure.test>
+Subject: Quick Favor Needed - Are You Available?
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=corp-example-secure.test;
+ dkim=none; dmarc=fail header.from=corp-example-secure.test
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Bob,
+
+Are you at your desk right now? I need a quick favor handled discreetly
+before my next meeting. Reply as soon as you see this.
+
+Michael Chen
+Chief Executive Officer
