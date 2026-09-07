@@ -386,11 +386,36 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
   // client-generated timestamp, not a server or cryptographic one.
   const [generatedAt] = useState(() => new Date());
 
+  // The backend contract always populates these nested objects, but this
+  // view must never crash — and hide the AI explanation card with it — if
+  // a response is ever missing one. Normalizing once here (rather than
+  // scattering optional chains through every render path below) keeps the
+  // rest of this component reading and behaving exactly as before.
+  const iocs = {
+    ipv4: result.iocs?.ipv4 ?? [],
+    ipv6: result.iocs?.ipv6 ?? [],
+    domains: result.iocs?.domains ?? [],
+    urls: result.iocs?.urls ?? [],
+    attachment_hashes: result.iocs?.attachment_hashes ?? [],
+  };
+  const forensics = {
+    spf_result: result.forensics?.spf_result ?? null,
+    dkim_result: result.forensics?.dkim_result ?? null,
+    dmarc_result: result.forensics?.dmarc_result ?? null,
+    authentication_results_raw: result.forensics?.authentication_results_raw ?? null,
+    authentication_results_raw_all: result.forensics?.authentication_results_raw_all ?? [],
+    received_chain: result.forensics?.received_chain ?? [],
+    routing_flags: result.forensics?.routing_flags ?? [],
+  };
+  const threatAssessment: ThreatAssessment = result.threat_assessment ?? {
+    risk_level: "UNKNOWN",
+    reasons: [],
+  };
+  const attachments = result.attachments ?? [];
+  const urls = result.urls ?? [];
+
   // Offline enrichment is joined back onto the existing IOC rows by value
-  // rather than reshaping iocs itself — see ioc_enrichment.py. Guarded with
-  // a fallback: enrichment is always present in the backend contract, but
-  // this view must never crash (and hide the AI explanation below it) if a
-  // response is ever missing it.
+  // rather than reshaping iocs itself — see ioc_enrichment.py.
   const ipClassificationByValue = new Map(
     (result.enrichment?.ip ?? []).map((entry) => [entry.value, entry.classification]),
   );
@@ -441,7 +466,7 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
       </Section>
 
       {/* 2. Threat assessment — the focal point */}
-      <ThreatAssessmentCard assessment={result.threat_assessment} />
+      <ThreatAssessmentCard assessment={threatAssessment} />
 
       {/* 2b. Optional AI explanation of the evidence above (EXPLAIN stage) */}
       <AIExplanationCard
@@ -452,26 +477,26 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
       {/* 3. Authentication evidence */}
       <Section title="Email authentication">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <AuthTile label="SPF" value={result.forensics.spf_result} />
-          <AuthTile label="DKIM" value={result.forensics.dkim_result} />
-          <AuthTile label="DMARC" value={result.forensics.dmarc_result} />
+          <AuthTile label="SPF" value={forensics.spf_result} />
+          <AuthTile label="DKIM" value={forensics.dkim_result} />
+          <AuthTile label="DMARC" value={forensics.dmarc_result} />
         </div>
 
         <p className="mt-5 text-[10px] uppercase tracking-[0.16em] text-text-dim">
           Raw Authentication-Results header
         </p>
         <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface-lowest/70 px-4 py-3 font-mono text-[12px] leading-5 text-text-secondary">
-          {result.forensics.authentication_results_raw ?? "Not present in analyzed email."}
+          {forensics.authentication_results_raw ?? "Not present in analyzed email."}
         </pre>
 
-        {result.forensics.authentication_results_raw_all.length > 1 && (
+        {forensics.authentication_results_raw_all.length > 1 && (
           <details className="mt-3 rounded-control bg-surface-lowest/70 px-4 py-3">
             <summary className="cursor-pointer text-[12px] text-text-dim">
-              {result.forensics.authentication_results_raw_all.length} Authentication-Results
+              {forensics.authentication_results_raw_all.length} Authentication-Results
               headers found — view all
             </summary>
             <ul className="mt-3 flex flex-col gap-1.5">
-              {result.forensics.authentication_results_raw_all.map((raw, index) => (
+              {forensics.authentication_results_raw_all.map((raw, index) => (
                 <EvidenceRow key={index} text={raw} />
               ))}
             </ul>
@@ -484,13 +509,13 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
         <div>
           <div className="flex items-baseline gap-2">
             <h4 className="text-[12px] font-medium text-text-secondary">Received chain</h4>
-            <CountMeta count={result.forensics.received_chain.length} />
+            <CountMeta count={forensics.received_chain.length} />
           </div>
-          {result.forensics.received_chain.length === 0 ? (
+          {forensics.received_chain.length === 0 ? (
             <p className="mt-2 text-[12px] text-text-dim">No Received headers found.</p>
           ) : (
             <ul className="mt-2.5 flex flex-col gap-1.5">
-              {result.forensics.received_chain.map((hop, index) => (
+              {forensics.received_chain.map((hop, index) => (
                 <EvidenceRow key={index} text={hop} />
               ))}
             </ul>
@@ -500,13 +525,13 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
         <div className="mt-6">
           <div className="flex items-baseline gap-2">
             <h4 className="text-[12px] font-medium text-text-secondary">Routing flags</h4>
-            <CountMeta count={result.forensics.routing_flags.length} />
+            <CountMeta count={forensics.routing_flags.length} />
           </div>
-          {result.forensics.routing_flags.length === 0 ? (
+          {forensics.routing_flags.length === 0 ? (
             <p className="mt-2 text-[12px] text-text-dim">No routing inconsistencies detected.</p>
           ) : (
             <ul className="mt-2.5 flex flex-col gap-1.5">
-              {result.forensics.routing_flags.map((flag) => (
+              {forensics.routing_flags.map((flag) => (
                 <li
                   key={flag}
                   className="flex items-center gap-2.5 rounded-control border border-warning/30 bg-warning/5 px-3.5 py-2.5 font-mono text-[12px] text-warning"
@@ -525,7 +550,7 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
         <div className="flex flex-col gap-6">
           <IOCGroup
             label="IPv4 addresses"
-            entries={result.iocs.ipv4}
+            entries={iocs.ipv4}
             emptyText="No IPv4 indicators found."
             renderRow={(entry) => (
               <IPIndicatorRow
@@ -538,7 +563,7 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
 
           <IOCGroup
             label="IPv6 addresses"
-            entries={result.iocs.ipv6}
+            entries={iocs.ipv6}
             emptyText="No IPv6 indicators found."
             renderRow={(entry) => (
               <IPIndicatorRow
@@ -551,14 +576,14 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
 
           <IOCGroup
             label="Domains"
-            entries={result.iocs.domains}
+            entries={iocs.domains}
             emptyText="No domain indicators found."
             renderRow={(entry) => <DomainIndicatorRow key={entry.value} entry={entry} />}
           />
 
           <IOCGroup
             label="URLs"
-            entries={result.iocs.urls}
+            entries={iocs.urls}
             emptyText="No URL indicators found."
             renderRow={(entry) => (
               <URLIndicatorRow
@@ -571,7 +596,7 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
 
           <IOCGroup
             label="Attachment hashes (SHA-256)"
-            entries={result.iocs.attachment_hashes}
+            entries={iocs.attachment_hashes}
             emptyText="No attachment hashes found."
             renderRow={(entry, index) => (
               <AttachmentHashRow key={`${entry.filename ?? "unnamed"}-${index}`} entry={entry} />
@@ -592,13 +617,13 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
         <div className="mt-6">
           <div className="flex items-baseline gap-2">
             <h4 className="text-[12px] font-medium text-text-secondary">Attachments</h4>
-            <CountMeta count={result.attachments.length} />
+            <CountMeta count={attachments.length} />
           </div>
-          {result.attachments.length === 0 ? (
+          {attachments.length === 0 ? (
             <p className="mt-2 text-[12px] text-text-dim">No attachments found.</p>
           ) : (
             <ul className="mt-2.5 flex flex-col gap-1.5">
-              {result.attachments.map((attachment, index) => (
+              {attachments.map((attachment, index) => (
                 <li
                   key={`${attachment.filename ?? "unnamed"}-${index}`}
                   className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-control bg-surface-lowest/70 px-3.5 py-2.5"
@@ -618,13 +643,13 @@ export default function AnalysisResult({ result }: { result: ParsedEmail }) {
         <div className="mt-6">
           <div className="flex items-baseline gap-2">
             <h4 className="text-[12px] font-medium text-text-secondary">Extracted URLs</h4>
-            <CountMeta count={result.urls.length} />
+            <CountMeta count={urls.length} />
           </div>
-          {result.urls.length === 0 ? (
+          {urls.length === 0 ? (
             <p className="mt-2 text-[12px] text-text-dim">No URLs found.</p>
           ) : (
             <ul className="mt-2.5 flex flex-col gap-1.5">
-              {result.urls.map((url) => (
+              {urls.map((url) => (
                 <li
                   key={url}
                   className="break-all rounded-control bg-surface-lowest/70 px-3.5 py-2.5 font-mono text-[12px] leading-5 text-sky"
