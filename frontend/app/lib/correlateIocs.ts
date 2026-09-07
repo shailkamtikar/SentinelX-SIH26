@@ -63,19 +63,19 @@ function findSharedValues(
 export function computeSharedIOCs(history: AnalyzedEmail[]): SharedIndicator[] {
   return [
     ...findSharedValues(history, "IPv4", (email) =>
-      email.result.iocs.ipv4.map((entry) => entry.value),
+      (email.result.iocs?.ipv4 ?? []).map((entry) => entry.value),
     ),
     ...findSharedValues(history, "IPv6", (email) =>
-      email.result.iocs.ipv6.map((entry) => entry.value),
+      (email.result.iocs?.ipv6 ?? []).map((entry) => entry.value),
     ),
     ...findSharedValues(history, "Domain", (email) =>
-      email.result.iocs.domains.map((entry) => entry.value),
+      (email.result.iocs?.domains ?? []).map((entry) => entry.value),
     ),
     ...findSharedValues(history, "URL", (email) =>
-      email.result.iocs.urls.map((entry) => entry.value),
+      (email.result.iocs?.urls ?? []).map((entry) => entry.value),
     ),
     ...findSharedValues(history, "Attachment SHA-256", (email) =>
-      email.result.iocs.attachment_hashes
+      (email.result.iocs?.attachment_hashes ?? [])
         .map((entry) => entry.sha256)
         .filter((sha256): sha256 is string => sha256 !== null),
     ),
