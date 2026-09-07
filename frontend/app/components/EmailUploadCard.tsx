@@ -33,7 +33,7 @@ function isEmlFile(file: File): boolean {
 export default function EmailUploadCard({
   onAnalysisComplete,
 }: {
-  onAnalysisComplete?: (result: ParsedEmail) => void;
+  onAnalysisComplete?: (result: ParsedEmail, filename: string) => void;
 }) {
   const { session } = useAuthSession();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -123,7 +123,7 @@ export default function EmailUploadCard({
       const result = await analyzeEmail(file, session.access_token);
       setAnalysisResult(result);
       setAnalysisState("success");
-      onAnalysisComplete?.(result);
+      onAnalysisComplete?.(result, file.name);
     } catch (error) {
       const message =
         error instanceof AnalyzeEmailError

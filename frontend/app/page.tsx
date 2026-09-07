@@ -1,25 +1,60 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import CorrelationPanel from "./components/CorrelationPanel";
 import ContextualPanel from "./components/ContextualPanel";
 import EmailUploadCard from "./components/EmailUploadCard";
 import Header from "./components/Header";
+import InvestigationSummary from "./components/InvestigationSummary";
+import ObservedRelationships from "./components/ObservedRelationships";
 import PipelineStages from "./components/PipelineStages";
 import Sidebar from "./components/Sidebar";
-import { AuthGate } from "./lib/AuthGate";
+import { fetchAnalysisHistory } from "./lib/analysisHistory";
 import type { ParsedEmail } from "./lib/analyzeEmail";
-import type { AnalyzedEmail } from "./lib/correlateIocs";
+import { AuthGate } from "./lib/AuthGate";
+import { useAuthSession } from "./lib/AuthSessionProvider";
+import { computeSharedIOCs, type AnalyzedEmail } from "./lib/correlateIocs";
 
 export default function Home() {
-  // Successful-analysis history for this browser session only — no
-  // persistence, no identifiers beyond a sequential display label.
-  const [history, setHistory] = useState<AnalyzedEmail[]>([]);
+  const { session } = useAuthSession();
 
-  const handleAnalysisComplete = useCallback((result: ParsedEmail) => {
-    setHistory((previous) => [...previous, { label: `Email ${previous.length + 1}`, result }]);
+  // Seeded once from the authenticated user's persisted history (Supabase),
+  // then appended to locally as new uploads succeed this session — so a
+  // refresh doesn't lose prior investigation context, and a live upload
+  // still renders immediately without waiting on a round trip.
+  const [history, setHistory] = useState<AnalyzedEmail[]>([]);
+  const historySeeded = useRef(false);
+
+  useEffect(() => {
+    if (!session || historySeeded.current) return;
+    historySeeded.current = true;
+
+    fetchAnalysisHistory(session.access_token).then((entries) => {
+      setHistory((previous) => {
+        // A live upload already happened before this fetch resolved —
+        // don't clobber it. This is a deliberate, simple choice over a
+        // full merge: the common case (fetch resolves before a human
+        // finishes picking and uploading a file) is handled correctly,
+        // and the rare race never shows stale or duplicated data.
+        if (previous.length > 0) return previous;
+        return entries.map((entry, index) => ({
+          label: entry.original_filename ?? `Email ${index + 1}`,
+          result: entry.response,
+          analyzedAt: entry.analyzed_at,
+        }));
+      });
+    });
+  }, [session]);
+
+  const handleAnalysisComplete = useCallback((result: ParsedEmail, filename: string) => {
+    setHistory((previous) => [
+      ...previous,
+      { label: filename || `Email ${previous.length + 1}`, result, analyzedAt: null },
+    ]);
   }, []);
+
+  const sharedIndicators = computeSharedIOCs(history);
 
   return (
     <AuthGate requireSession redirectTo="/login">
@@ -60,7 +95,11 @@ export default function Home() {
                 </div>
               </div>
 
+              <InvestigationSummary history={history} sharedIndicators={sharedIndicators} />
+
               <CorrelationPanel history={history} />
+
+              <ObservedRelationships history={history} sharedIndicators={sharedIndicators} />
             </div>
           </main>
         </div>

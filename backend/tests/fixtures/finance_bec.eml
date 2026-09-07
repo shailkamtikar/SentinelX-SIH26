@@ -1,0 +1,24 @@
+From: CFO Office <cfo@corp-example.test>
+To: accounts-payable@corp-example.test
+Reply-To: urgent-payments@wire-transfer-example.test
+Return-Path: <bounce@wire-transfer-example.test>
+Date: Tue, 10 Jun 2025 13:05:00 +0000
+Message-ID: <finance-bec-0001@corp-example.test>
+Subject: URGENT - Confidential Wire Transfer Needed Today
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=wire-transfer-example.test;
+ dkim=none; dmarc=fail header.from=corp-example.test
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+I need you to process a confidential wire transfer before end of day.
+This is time-sensitive and I am currently unavailable by phone - please
+handle via email only.
+
+Send confirmation once complete to the payment processing portal:
+
+http://203.0.113.77/wire/confirm
+
+Do not discuss this with anyone else in the office until it is done.
+
+CFO Office

@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.config import get_settings
-from app.services.analysis_store import persist_analysis
+from app.services.analysis_store import get_analysis_history_for_user, persist_analysis
 from app.services.auth import get_current_user_id
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
@@ -153,3 +153,24 @@ async def analyze_email(
     }
 
     return response
+
+
+@router.get("/analysis-history")
+async def analysis_history(user_id: str = Depends(get_current_user_id)) -> dict[str, object]:
+    """The authenticated user's own previously persisted analyses.
+
+    Authentication is mandatory (the same verified-JWT dependency as
+    /analyze-email) — there is no anonymous or unauthenticated history.
+    owner_id/case scoping comes entirely from the verified token; nothing
+    here ever accepts a case id, owner id, or filter from the caller.
+    Best-effort like every other Supabase-backed stage: any failure
+    (Supabase unconfigured, network error, etc.) degrades to an empty,
+    truthful history rather than a 500.
+    """
+    try:
+        entries = get_analysis_history_for_user(user_id)
+    except Exception as exc:
+        logger.warning("Analysis history unavailable: %s", type(exc).__name__)
+        entries = []
+
+    return {"entries": entries}

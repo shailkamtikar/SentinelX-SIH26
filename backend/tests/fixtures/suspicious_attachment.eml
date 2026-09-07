@@ -1,0 +1,30 @@
+From: Shipping Notice <shipping@parcel-example.test>
+To: bob@example.org
+Reply-To: shipping@parcel-example.test
+Return-Path: <shipping@parcel-example.test>
+Date: Thu, 12 Jun 2025 10:10:00 +0000
+Message-ID: <suspicious-attachment-0001@parcel-example.test>
+Subject: Delivery Failed - Action Required (See Attachment)
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=parcel-example.test;
+ dkim=none; dmarc=none
+Content-Type: multipart/mixed; boundary="===============7000000000000000001=="
+MIME-Version: 1.0
+
+--===============7000000000000000001==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Your parcel delivery failed. Open the attached notice for redelivery
+instructions and reference number.
+
+--===============7000000000000000001==
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="delivery_notice.bin"
+MIME-Version: 1.0
+
+U1VTUElDSU9VUy1ERU1PLVBBWUxPQUQtRE8tTk9ULUVYRUNVVEUtMDAwMQoo
+c3ludGhldGljIGNvbnRlbnQgZm9yIFNlbnRpbmVsWCBmaXh0dXJlIGNvcnJl
+bGF0aW9uIHRlc3RpbmcpCg==
+
+--===============7000000000000000001==--

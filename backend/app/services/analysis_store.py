@@ -54,6 +54,23 @@ def _get_client() -> SupabaseClientLike:
     return create_client(settings.supabase_url, settings.supabase_secret_key)
 
 
+def _find_case_id_for_user(client: SupabaseClientLike, user_id: str) -> str | None:
+    """The id of this user's existing prototype case, or None if they have none yet.
+
+    Read-only — never creates a case. Used by both
+    _get_or_create_case_for_user (persistence) and
+    get_analysis_history_for_user (read), so merely *viewing* history can
+    never conjure a case into existence for a user who has never analyzed
+    anything.
+    """
+    existing = (
+        client.table("cases").select("id").eq("owner_id", user_id).limit(1).execute()
+    )
+    if existing.data:
+        return existing.data[0]["id"]
+    return None
+
+
 def _get_or_create_case_for_user(client: SupabaseClientLike, user_id: str) -> str:
     """Return the id of this user's single prototype case, creating it if needed.
 
@@ -63,11 +80,9 @@ def _get_or_create_case_for_user(client: SupabaseClientLike, user_id: str) -> st
     shared across users. Still one case per user for this prototype
     milestone: no case-selection UI, no multi-case model.
     """
-    existing = (
-        client.table("cases").select("id").eq("owner_id", user_id).limit(1).execute()
-    )
-    if existing.data:
-        return existing.data[0]["id"]
+    existing_case_id = _find_case_id_for_user(client, user_id)
+    if existing_case_id is not None:
+        return existing_case_id
 
     created = (
         client.table("cases")
@@ -288,3 +303,51 @@ def persist_analysis(
         raw_eml_storage_path=storage_path,
         storage_error=storage_error,
     )
+
+
+def get_analysis_history_for_user(
+    user_id: str, *, client: SupabaseClientLike | None = None
+) -> list[dict[str, Any]]:
+    """Every previously persisted analysis belonging to this user, oldest first.
+
+    `user_id` must be the verified Supabase user UUID from the
+    authenticated request — never a value supplied by the browser. Reads
+    are scoped to that user's own case only (see _find_case_id_for_user);
+    a user with no prior analyses gets an empty list, not an error, and no
+    case is created as a side effect of merely viewing history.
+
+    Each entry reconstructs the same shape /analyze-email itself returns
+    (`response`) from the already-persisted `parsed_response` plus the
+    row's own hash/storage-path columns for the `evidence` field, which is
+    added by the route *after* persistence and so isn't part of the stored
+    JSON. Raw .eml bytes are never included — only the boolean/hash
+    evidence status, exactly like a live analysis response.
+    """
+    resolved_client = client or _get_client()
+
+    case_id = _find_case_id_for_user(resolved_client, user_id)
+    if case_id is None:
+        return []
+
+    result = resolved_client.table("emails").select("*").eq("case_id", case_id).execute()
+
+    entries: list[dict[str, Any]] = []
+    for row in result.data or []:
+        response = dict(row.get("parsed_response") or {})
+        response["evidence"] = {
+            "raw_eml_sha256": row.get("raw_eml_sha256"),
+            "raw_eml_stored": bool(row.get("raw_eml_storage_path")),
+        }
+        entries.append(
+            {
+                "email_id": row.get("id"),
+                "original_filename": row.get("original_filename"),
+                # None when the table has no such column/value — never
+                # invented. The frontend degrades to omitting timestamps.
+                "analyzed_at": row.get("created_at"),
+                "response": response,
+            }
+        )
+
+    entries.sort(key=lambda entry: entry.get("analyzed_at") or "")
+    return entries

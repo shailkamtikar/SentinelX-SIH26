@@ -8,6 +8,10 @@ import type { ParsedEmail } from "./analyzeEmail";
 export type AnalyzedEmail = {
   label: string;
   result: ParsedEmail;
+  /** ISO timestamp from persisted history, when safely available — null
+   * for a live-uploaded email this session, or when the backend's own
+   * timestamp column wasn't available. Never invented. */
+  analyzedAt?: string | null;
 };
 
 export type SharedIndicatorType = "IPv4" | "IPv6" | "Domain" | "URL" | "Attachment SHA-256";

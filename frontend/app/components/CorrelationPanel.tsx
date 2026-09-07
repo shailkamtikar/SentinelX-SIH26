@@ -2,6 +2,16 @@ import type { ReactNode } from "react";
 
 import { computeSharedIOCs, type AnalyzedEmail, type SharedIndicator } from "../lib/correlateIocs";
 
+const INTERPRETATION_BY_TYPE: Record<SharedIndicator["type"], string> = {
+  IPv4: "Repeated infrastructure across multiple analyzed emails is an investigation lead and may warrant infrastructure-level review.",
+  IPv6: "Repeated infrastructure across multiple analyzed emails is an investigation lead and may warrant infrastructure-level review.",
+  Domain:
+    "A domain observed across multiple emails is an investigation lead and may warrant infrastructure-level review.",
+  URL: "The exact same URL observed across multiple emails is an investigation lead and warrants independent verification before visiting it.",
+  "Attachment SHA-256":
+    "The exact same attachment observed across multiple emails may indicate reuse of the same artifact and warrants further investigation.",
+};
+
 function SharedIndicatorCard({ indicator }: { indicator: SharedIndicator }) {
   return (
     <li className="rounded-card bg-surface-container p-4 sm:p-5">
@@ -12,9 +22,25 @@ function SharedIndicatorCard({ indicator }: { indicator: SharedIndicator }) {
         <span className="break-all font-mono text-[13px] text-text-primary">
           {indicator.value}
         </span>
+        <span className="ml-auto shrink-0 text-[11px] text-text-dim">
+          {indicator.emailLabels.length} {indicator.emailLabels.length === 1 ? "email" : "emails"}
+        </span>
       </div>
-      <p className="mt-2.5 text-[12px] leading-5 text-text-dim">
-        Seen in {indicator.emailLabels.join(", ")} · {indicator.emailLabels.length} emails
+
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {indicator.emailLabels.map((label) => (
+          <span
+            key={label}
+            className="rounded-control bg-surface-lowest/80 px-2 py-0.5 text-[11px] text-text-secondary"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-3 text-[12px] leading-5 text-text-dim">
+        <span className="font-medium text-text-secondary">Why it matters: </span>
+        {INTERPRETATION_BY_TYPE[indicator.type]}
       </p>
     </li>
   );
@@ -28,7 +54,7 @@ function CorrelationSection({
   children: ReactNode;
 }) {
   return (
-    <section className="print:hidden rounded-panel border border-border-structural/60 bg-surface-lowest p-5 sm:p-7">
+    <section className="print-report print:break-inside-avoid rounded-panel border border-border-structural/60 bg-surface-lowest p-5 sm:p-7">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-[11px] font-medium uppercase tracking-[0.16em] text-text-dim">
           Correlation
@@ -67,7 +93,7 @@ export default function CorrelationPanel({ history }: { history: AnalyzedEmail[]
         <>
           <div className="flex items-baseline gap-2">
             <h3 className="text-[14px] font-semibold tracking-tight text-text-primary">
-              Shared indicators detected
+              Repeated indicators
             </h3>
             <span className="text-[11px] text-text-dim">{sharedIndicators.length}</span>
           </div>

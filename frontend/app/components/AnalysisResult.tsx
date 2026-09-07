@@ -123,12 +123,48 @@ function SourceTag({ sources }: { sources: string[] }) {
 
 // Structural facts only, never a maliciousness verdict — same neutral
 // visual language as the IP classification badge below.
-function FlagBadge({ label }: { label: string }) {
+function FlagBadge({ label, title }: { label: string; title?: string }) {
   return (
-    <span className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral">
+    <span
+      title={title}
+      className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral"
+    >
       {label}
     </span>
   );
+}
+
+/**
+ * Plain-language explanation of an offline IP classification (see
+ * ioc_enrichment.py) — structural provenance only, never a live
+ * reputation, GeoIP, or WHOIS claim, since none of those are implemented.
+ */
+function explainIpClassification(classification: string): string {
+  if (classification.includes("documentation range")) {
+    return "Synthetic documentation/test range. This classification is not evidence of a malicious public IP.";
+  }
+  if (classification.includes("RFC 1918") || classification.toLowerCase().includes("private")) {
+    return "Private address space; not directly routable on the public Internet.";
+  }
+  if (classification.includes("Loopback")) {
+    return "Loopback address; refers to the local machine, not a remote host.";
+  }
+  if (classification.includes("Link-local")) {
+    return "Link-local address; valid only on the local network segment.";
+  }
+  if (classification.includes("Shared address space") || classification.includes("CGNAT")) {
+    return "Shared/carrier-grade NAT address space, commonly used by ISPs — not inherently suspicious.";
+  }
+  if (classification.includes("Reserved")) {
+    return "Reserved address range per the IANA special-purpose registry; not expected in normal public traffic.";
+  }
+  if (classification.includes("Multicast")) {
+    return "Multicast address; identifies a group of hosts, not a single sender.";
+  }
+  if (classification.includes("Public")) {
+    return "Publicly routable address. No live reputation, GeoIP, or WHOIS lookup was performed — this is a structural classification only.";
+  }
+  return "Offline structural classification only — no live reputation, GeoIP, or WHOIS lookup was performed.";
 }
 
 function IndicatorRow({ children }: { children: ReactNode }) {
@@ -151,7 +187,10 @@ function IPIndicatorRow({
       <span className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[12px] text-text-secondary">{entry.value}</span>
         {entry.private && (
-          <span className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral">
+          <span
+            title={explainIpClassification(classification ?? "Private")}
+            className="rounded-control bg-surface-high px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral"
+          >
             {/* Falls back to the generic "Private" label when offline
                 enrichment is unavailable — the row must still degrade
                 gracefully. */}
@@ -190,7 +229,12 @@ function URLIndicatorRow({
         {entry.ip_literal_url && <FlagBadge label="IP literal" />}
         {entry.credential_in_url && <FlagBadge label="Credentials in URL" />}
         {entry.punycode_domain && <FlagBadge label="Punycode" />}
-        {isKnownShortener && <FlagBadge label="Known URL shortener" />}
+        {isKnownShortener && (
+          <FlagBadge
+            label="Known URL shortener"
+            title="URL uses a known shortening service, which can obscure the final destination and warrants inspection."
+          />
+        )}
       </span>
       <SourceTag sources={entry.sources} />
     </IndicatorRow>
@@ -238,8 +282,103 @@ function IOCGroup<T>({
   );
 }
 
+type ThreatFinding = {
+  finding: string;
+  evidence: string[];
+  whyItMatters: string;
+};
+
+const ROUTING_MISMATCH_LABELS: Record<string, string> = {
+  return_path_domain_mismatch: "Return-Path domain differs from the From domain",
+  reply_to_domain_mismatch: "Reply-To domain differs from the From domain",
+};
+
+/**
+ * Groups the deterministic assessment's flat reason strings (see
+ * app.services.threat_assessment.py) into the three evidence categories
+ * that engine itself evaluates, each with a plain-language "why it
+ * matters" — cautious, non-alarmist wording only ("can indicate",
+ * "warrants investigation"), never an ML/reputation claim. Every reason
+ * string still comes directly from the backend; nothing here invents or
+ * reinterprets evidence, it only explains categories the engine already
+ * computes.
+ */
+function categorizeThreatReasons(reasons: string[]): ThreatFinding[] {
+  const authEvidence = reasons.filter(
+    (reason) => reason.startsWith("SPF result:") || reason.startsWith("DMARC result:"),
+  );
+  const routingEvidence = reasons.filter((reason) => reason in ROUTING_MISMATCH_LABELS);
+  const urlEvidence = reasons.filter(
+    (reason) =>
+      reason.startsWith("URL hostname is a raw IP address:") ||
+      reason.startsWith("Credentials embedded in URL:") ||
+      reason.startsWith("URL hostname uses punycode") ||
+      reason.startsWith("Domain uses punycode"),
+  );
+  const categorized = new Set([...authEvidence, ...routingEvidence, ...urlEvidence]);
+  const otherEvidence = reasons.filter((reason) => !categorized.has(reason));
+
+  const findings: ThreatFinding[] = [];
+
+  if (authEvidence.length > 0) {
+    findings.push({
+      finding: "Authentication failure",
+      evidence: authEvidence,
+      whyItMatters:
+        "The claimed sender identity failed authentication checks and should be independently validated before this message is trusted.",
+    });
+  }
+  if (routingEvidence.length > 0) {
+    findings.push({
+      finding: "Routing identity mismatch",
+      evidence: routingEvidence.map((reason) => ROUTING_MISMATCH_LABELS[reason] ?? reason),
+      whyItMatters:
+        "Reply or bounce traffic is routed through a different domain than the claimed sender, which can indicate impersonation or routing manipulation.",
+    });
+  }
+  if (urlEvidence.length > 0) {
+    findings.push({
+      finding: "Structural URL risk",
+      evidence: urlEvidence,
+      whyItMatters:
+        "The URL structure contains a pattern commonly associated with deceptive or credential-collection links and warrants investigation before it is visited.",
+    });
+  }
+  if (otherEvidence.length > 0) {
+    findings.push({
+      finding: "Other deterministic finding",
+      evidence: otherEvidence,
+      whyItMatters:
+        "Flagged by the deterministic assessment; review alongside the evidence above before drawing a conclusion.",
+    });
+  }
+
+  return findings;
+}
+
+function ThreatFindingCard({ finding }: { finding: ThreatFinding }) {
+  return (
+    <div className="rounded-control bg-surface-lowest/70 px-4 py-3.5">
+      <p className="text-[12px] font-semibold text-text-primary">{finding.finding}</p>
+
+      <p className="mt-2.5 text-[10px] uppercase tracking-[0.16em] text-text-dim">Evidence</p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {finding.evidence.map((item, index) => (
+          <li key={index} className="break-all font-mono text-[12px] leading-5 text-text-secondary">
+            {item}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-2.5 text-[10px] uppercase tracking-[0.16em] text-text-dim">Why it matters</p>
+      <p className="mt-1 text-[12px] leading-5 text-text-dim">{finding.whyItMatters}</p>
+    </div>
+  );
+}
+
 function ThreatAssessmentCard({ assessment }: { assessment: ThreatAssessment }) {
   const styles = RISK_LEVEL_STYLES[assessment.risk_level];
+  const findings = categorizeThreatReasons(assessment.reasons);
 
   return (
     <section className={`rounded-card border ${styles.border} ${styles.bg} p-5 sm:p-6`}>
@@ -254,22 +393,16 @@ function ThreatAssessmentCard({ assessment }: { assessment: ThreatAssessment }) 
         </span>
       </div>
 
-      {assessment.reasons.length === 0 ? (
+      {findings.length === 0 ? (
         <p className="mt-4 text-[13px] leading-6 text-text-dim">
           No risk indicators found in extracted evidence.
         </p>
       ) : (
-        <ul className="mt-4 flex flex-col gap-2">
-          {assessment.reasons.map((reason, index) => (
-            <li
-              key={index}
-              className="flex items-start gap-2.5 text-[13px] leading-6 text-text-secondary"
-            >
-              <span className={`mt-2.5 h-1 w-1 shrink-0 rounded-full ${styles.dot}`} />
-              {reason}
-            </li>
+        <div className="mt-4 flex flex-col gap-3">
+          {findings.map((finding) => (
+            <ThreatFindingCard key={finding.finding} finding={finding} />
           ))}
-        </ul>
+        </div>
       )}
 
       <p className="mt-5 text-[11px] leading-5 text-text-dim">

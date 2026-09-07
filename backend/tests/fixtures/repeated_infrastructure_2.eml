@@ -1,0 +1,20 @@
+From: Executive Request <exec-assist@corp-example.test>
+To: bob@example.org
+Reply-To: response@malicious-shared.example.test
+Return-Path: <exec-assist@corp-example.test>
+Date: Fri, 13 Jun 2025 15:20:00 +0000
+Message-ID: <repeated-infrastructure-0002@corp-example.test>
+Subject: Executive Request - Confidential Task
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=corp-example.test;
+ dkim=none; dmarc=none
+Received: from mail.unknown-relay.test (unknown-relay.test [198.51.100.42])
+ by mx.corp-example.test with ESMTP id rel002; Fri, 13 Jun 2025 15:19:50 +0000
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+I need you to handle a confidential task for me today. Reply directly to
+this message and I will send further instructions.
+
+Thanks,
+Executive Assistant

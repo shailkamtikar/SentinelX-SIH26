@@ -1,0 +1,20 @@
+From: Payment Request <payments@corp-example.test>
+To: accounts-payable@corp-example.test
+Reply-To: response@malicious-shared.example.test
+Return-Path: <payments@corp-example.test>
+Date: Fri, 13 Jun 2025 09:00:00 +0000
+Message-ID: <repeated-infrastructure-0001@corp-example.test>
+Subject: Payment Request - Vendor Account Update
+Authentication-Results: mx.corp-example.test; spf=fail smtp.mailfrom=corp-example.test;
+ dkim=none; dmarc=none
+Received: from mail.unknown-relay.test (unknown-relay.test [198.51.100.42])
+ by mx.corp-example.test with ESMTP id rel001; Fri, 13 Jun 2025 08:59:40 +0000
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Please update our vendor payment account details as discussed. Reply to
+confirm receipt of the new banking information.
+
+Thanks,
+Accounts Team
