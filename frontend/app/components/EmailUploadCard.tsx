@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { analyzeEmail, AnalyzeEmailError, type ParsedEmail } from "../lib/analyzeEmail";
+import { useAuthSession } from "../lib/AuthSessionProvider";
 import AnalysisResult from "./AnalysisResult";
 
 type Status = "empty" | "selected" | "invalid";
@@ -34,6 +35,7 @@ export default function EmailUploadCard({
 }: {
   onAnalysisComplete?: (result: ParsedEmail) => void;
 }) {
+  const { session } = useAuthSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("empty");
@@ -103,12 +105,22 @@ export default function EmailUploadCard({
   const handleAnalyzeClick = async () => {
     if (!file || status !== "selected" || analysisState === "loading") return;
 
+    // Fails closed: an unresolved session (still loading) is treated the
+    // same as signed-out — analysis is never submitted, and the email is
+    // never added to local correlation history, unless a session is
+    // actually confirmed present.
+    if (!session) {
+      setAnalysisError("Sign in required to analyze email evidence.");
+      setAnalysisState("error");
+      return;
+    }
+
     setAnalysisState("loading");
     setAnalysisError(null);
     setAnalysisResult(null);
 
     try {
-      const result = await analyzeEmail(file);
+      const result = await analyzeEmail(file, session.access_token);
       setAnalysisResult(result);
       setAnalysisState("success");
       onAnalysisComplete?.(result);

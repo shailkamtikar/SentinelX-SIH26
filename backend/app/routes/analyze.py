@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.config import get_settings
 from app.services.analysis_store import persist_analysis
+from app.services.auth import get_current_user_id
 from app.services.eml_parser import parse_eml_bytes
 from app.services.email_forensics import ForensicHeaders, parse_email_forensics
 from app.services.evidence_storage import compute_raw_eml_sha256
@@ -21,7 +22,10 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 @router.post("/analyze-email")
-async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
+async def analyze_email(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+) -> dict[str, object]:
     if not file.filename or not file.filename.lower().endswith(".eml"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -131,7 +135,10 @@ async def analyze_email(file: UploadFile = File(...)) -> dict[str, object]:
     outcome = None
     try:
         outcome = persist_analysis(
-            raw_bytes=raw_bytes, filename=file.filename, response=response
+            raw_bytes=raw_bytes,
+            filename=file.filename,
+            response=response,
+            user_id=user_id,
         )
     except Exception:
         pass

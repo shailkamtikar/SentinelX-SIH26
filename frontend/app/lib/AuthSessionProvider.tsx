@@ -1,6 +1,7 @@
 "use client";
 
 import type { Session } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient";
@@ -23,12 +24,13 @@ const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
  * anything else that needs it) instead of duplicating session-fetching and
  * onAuthStateChange wiring in each component.
  *
- * Deliberately does nothing beyond exposing session state and signOut:
- * no route protection, no redirect on sign-in/out (Milestone 3), no
- * backend calls, no token exposure — access/refresh tokens are never read
- * out of `session` here or passed anywhere.
+ * Deliberately does nothing beyond exposing session state, signOut, and
+ * redirecting to /login after a successful logout: no route protection
+ * (Milestone 4+), no backend calls, no token exposure — access/refresh
+ * tokens are never read out of `session` here or passed anywhere.
  */
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   // Known synchronously and truthfully at first render — no session check
   // will ever run if Supabase isn't configured, so there is nothing to
@@ -78,7 +80,12 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     const { error } = await client.auth.signOut();
     setSigningOut(false);
 
-    return { error: error ? error.message : null };
+    if (error) {
+      return { error: error.message };
+    }
+
+    router.push("/login");
+    return { error: null };
   };
 
   return (

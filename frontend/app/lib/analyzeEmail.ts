@@ -123,8 +123,13 @@ export class AnalyzeEmailError extends Error {}
  * structured evidence fields. Never fabricates data — a network failure or
  * non-2xx response always surfaces as a thrown AnalyzeEmailError instead of
  * a fallback result.
+ *
+ * `accessToken` is the caller's current Supabase session access token
+ * (never read from localStorage or a URL here — the caller is expected to
+ * source it from the shared AuthSessionProvider). The backend requires it
+ * and rejects the request with 401 if it's missing or invalid.
  */
-export async function analyzeEmail(file: File): Promise<ParsedEmail> {
+export async function analyzeEmail(file: File, accessToken: string): Promise<ParsedEmail> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -134,6 +139,7 @@ export async function analyzeEmail(file: File): Promise<ParsedEmail> {
     // boundary itself when given a FormData body.
     response = await fetch(`${API_BASE_URL}/analyze-email`, {
       method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
       body: formData,
     });
   } catch {

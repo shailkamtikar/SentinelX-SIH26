@@ -29,10 +29,6 @@ from app.services.evidence_storage import (
 
 _DEFAULT_CASE_TITLE = "Default Prototype Case"
 
-# Cached across requests within one process so we don't query/insert a
-# case row on every single upload. Reset in tests via monkeypatch.
-_cached_default_case_id: str | None = None
-
 
 class SupabaseClientLike(Protocol):
     """The minimal client surface this module actually uses.
@@ -58,26 +54,27 @@ def _get_client() -> SupabaseClientLike:
     return create_client(settings.supabase_url, settings.supabase_secret_key)
 
 
-def _get_or_create_default_case(client: SupabaseClientLike) -> str:
-    """Return the id of the single prototype case, creating it if needed.
+def _get_or_create_case_for_user(client: SupabaseClientLike, user_id: str) -> str:
+    """Return the id of this user's single prototype case, creating it if needed.
 
-    Deliberately simple: one shared case for this prototype milestone,
-    no auth, no case-selection UI. owner_id stays NULL.
+    owner_id is always the verified Supabase user UUID passed in by the
+    caller (routes/analyze.py, sourced from the authenticated request's
+    verified JWT) — never NULL, never supplied by the browser, and never
+    shared across users. Still one case per user for this prototype
+    milestone: no case-selection UI, no multi-case model.
     """
-    global _cached_default_case_id
-    if _cached_default_case_id is not None:
-        return _cached_default_case_id
-
-    existing = client.table("cases").select("id").limit(1).execute()
+    existing = (
+        client.table("cases").select("id").eq("owner_id", user_id).limit(1).execute()
+    )
     if existing.data:
-        _cached_default_case_id = existing.data[0]["id"]
-        return _cached_default_case_id
+        return existing.data[0]["id"]
 
     created = (
-        client.table("cases").insert({"title": _DEFAULT_CASE_TITLE, "owner_id": None}).execute()
+        client.table("cases")
+        .insert({"title": _DEFAULT_CASE_TITLE, "owner_id": user_id})
+        .execute()
     )
-    _cached_default_case_id = created.data[0]["id"]
-    return _cached_default_case_id
+    return created.data[0]["id"]
 
 
 def _index_by_value(entries: list[dict[str, Any]] | None, field: str) -> dict[str, Any]:
@@ -233,6 +230,7 @@ def persist_analysis(
     raw_bytes: bytes,
     filename: str | None,
     response: dict[str, Any],
+    user_id: str,
     client: SupabaseClientLike | None = None,
 ) -> PersistenceOutcome:
     """Persist one successful /analyze-email response to Supabase.
@@ -243,12 +241,18 @@ def persist_analysis(
     catching broadly so a persistence failure can never change the API
     response or turn a successful analysis into an HTTP error.
 
+    `user_id` must be the verified Supabase user UUID from the
+    authenticated request (see app.services.auth.get_current_user_id) —
+    never a value supplied by the browser. It becomes cases.owner_id for
+    the case this email is filed under; there is no anonymous/shared-case
+    fallback.
+
     Raw .eml upload is a nested best-effort step: it can fail without
     preventing the email row or the IOC child rows from being written.
     """
     resolved_client = client or _get_client()
 
-    case_id = _get_or_create_default_case(resolved_client)
+    case_id = _get_or_create_case_for_user(resolved_client, user_id)
     raw_eml_sha256 = compute_raw_eml_sha256(raw_bytes)
 
     email_row = _build_email_row(case_id, filename, raw_eml_sha256, response)

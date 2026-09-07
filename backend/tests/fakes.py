@@ -10,6 +10,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+# Shared fake-but-well-formed Supabase user UUID for tests that don't care
+# about a specific value, just that one is consistently present.
+DEFAULT_TEST_USER_ID = "11111111-1111-1111-1111-111111111111"
+
 
 class FakeResult:
     def __init__(self, data: Any):
@@ -74,7 +78,12 @@ class FakeTable:
             self._pending_update = None
             return FakeResult(updated)
 
-        return FakeResult(list(self._store.tables[self._name]))
+        matching = [
+            row
+            for row in self._store.tables[self._name]
+            if all(row.get(col) == val for col, val in self._filters)
+        ]
+        return FakeResult(matching)
 
 
 class FakeStorageBucket:

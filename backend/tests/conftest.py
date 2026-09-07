@@ -1,5 +1,31 @@
 import pytest
 
+from app.main import app
+from app.services.auth import get_current_user_id
+from tests.fakes import DEFAULT_TEST_USER_ID
+
+
+@pytest.fixture(autouse=True)
+def _authenticated_by_default():
+    """Every test is authenticated as one fixed fake user, by default.
+
+    POST /analyze-email now requires real authentication (see
+    app.services.auth.get_current_user_id), but the vast majority of tests
+    in this suite exist to exercise the deterministic pipeline (forensics,
+    IOCs, threat assessment, Gemini, persistence) and predate auth
+    entirely — they must keep passing without needing a real Supabase
+    project or a real JWT. FastAPI's own supported test mechanism —
+    dependency_overrides — swaps the dependency for a fixed fake user UUID
+    here, for every test, by default.
+
+    tests/test_auth.py explicitly removes this override so it exercises
+    the real get_current_user_id logic (missing/malformed/invalid tokens,
+    and successful verification) instead.
+    """
+    app.dependency_overrides[get_current_user_id] = lambda: DEFAULT_TEST_USER_ID
+    yield
+    app.dependency_overrides.pop(get_current_user_id, None)
+
 
 @pytest.fixture(autouse=True)
 def _no_real_credentials_in_tests(monkeypatch):
